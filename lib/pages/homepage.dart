@@ -1,0 +1,495 @@
+import 'dart:ui';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:paycash/transactions/receivemoney.dart';
+import 'package:paycash/transactions/sendmoney.dart';
+import 'package:timeago/timeago.dart' as timeago;
+
+import '../transactions/recharge.dart';
+
+class Homepage extends StatefulWidget {
+  const Homepage({super.key});
+
+  @override
+  State<Homepage> createState() => _HomepageState();
+}
+
+class _HomepageState extends State<Homepage> {
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  String? userUniqueId;
+  String userName = "";
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUserData();
+    timeago.setLocaleMessages('fr', timeago.FrMessages());
+  }
+
+  // Extraction de l'ID interne pour comparer localement (utilisé pour filtrer)
+  String extractInternalId(String fullId) {
+    final parts = fullId.split('_');
+    return parts.length >= 2 ? parts[parts.length - 2] : fullId;
+  }
+
+  // Récupération du user actuel et préparation de son ID interne
+  Future<void> fetchUserData() async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final doc = await firestore.collection('users').doc(uid).get();
+    final data = doc.data()!;
+    final fullIdUnique = data['idUnique'] as String;
+    final internalId = extractInternalId(fullIdUnique);
+
+    setState(() {
+      userUniqueId = internalId;
+      userName = data['name'] ?? "Utilisateur";
+    });
+  }
+
+  // Données utilisateur pour solde / email / statut
+  Future<Map<String, dynamic>> getUserData() async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final doc = await firestore.collection('users').doc(uid).get();
+    return doc.data()!;
+  }
+
+  // Récupérer le nom de l'utilisateur via son idUnique complet
+  Future<String> getUserNameById(String fullIdUnique) async {
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('users')
+          .where('idUnique', isEqualTo: fullIdUnique)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        return query.docs.first['name'] ?? "Inconnu(e)";
+      } else {
+        return "Inconnu(e)";
+      }
+    } catch (e) {
+      return "Inconnu(e)";
+    }
+  }
+
+  @override
+  @override
+  Widget build(BuildContext context) {
+    if (userUniqueId == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F3EC),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: const Color(0xFFF8F3EC),
+        centerTitle: true,
+        title: Text(
+          "PayCash",
+          style: GoogleFonts.poppins(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF4E342E),
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 🌟 Carte utilisateur (style carte bancaire)
+                FutureBuilder<Map<String, dynamic>>(
+                  future: getUserData(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final userdata = snapshot.data!;
+                    final name = userdata['name'];
+                    final status = userdata['status'];
+                    final fullIdUnique = userdata['idUnique'] ?? "";
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF4E342E), Color(0xFF6D4C41)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.brown.withOpacity(0.3),
+                            offset: const Offset(0, 6),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            status,
+                            style: GoogleFonts.poppins(
+                              color: const Color(0xFFD7B98E),
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 25),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                fullIdUnique.substring(0, 12) + "••••",
+                                style: GoogleFonts.robotoMono(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () {
+                                  Clipboard.setData(
+                                    ClipboardData(text: fullIdUnique),
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("ID copié !"),
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.copy,
+                                  color: Color(0xFFD7B98E),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 28),
+
+                // 💰 Solde et recharge
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.brown.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 20,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Bouton recharge
+                      Column(
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => RechargePage(),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              height: 65,
+                              width: 65,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFFD7B98E),
+                              ),
+                              child: const Icon(
+                                Icons.add,
+                                color: Colors.white,
+                                size: 30,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            "Recharge",
+                            style: GoogleFonts.poppins(
+                              color: const Color(0xFF4E342E),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Solde actuel
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                getUserData();
+                              });
+                            },
+                            icon: Icon(Icons.refresh),
+                          ),
+                          const SizedBox(width: 2),
+                          FutureBuilder<Map<String, dynamic>>(
+                            future: getUserData(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData) {
+                                return const Text("...");
+                              }
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return Text(
+                                  "........",
+                                  style: GoogleFonts.roboto(
+                                    fontSize: 25,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF4E342E),
+                                  ),
+                                );
+                              }
+                              final data = snapshot.data!;
+                              return Text(
+                                "${data['balance']} FCFA",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF4E342E),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 35),
+
+                // 🔁 Envoyer / Recevoir
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _actionButton(
+                      context,
+                      icon: Icons.call_made_rounded,
+                      label: "Envoyer",
+                      color: const Color(0xFF8D6E63),
+                      page: SendMoney(),
+                    ),
+                    _actionButton(
+                      context,
+                      icon: Icons.call_received,
+                      label: "Recevoir",
+                      color: const Color(0xFF6D4C41),
+                      page: ReceiveMoney(),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 30),
+
+                Text(
+                  "Historique des dernières transactions",
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF4E342E),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // Historique
+                StreamBuilder<QuerySnapshot>(
+                  stream: firestore
+                      .collection('transactions')
+                      .orderBy('createdAt', descending: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final allTx = snapshot.data!.docs;
+                    final userTx = allTx.where((doc) {
+                      final t = doc.data() as Map<String, dynamic>;
+                      final from = extractInternalId(t['from'] ?? '');
+                      final to = extractInternalId(t['to'] ?? '');
+                      return from == userUniqueId || to == userUniqueId;
+                    }).toList();
+
+                    if (userTx.isEmpty) {
+                      return const Center(child: Text("Aucune transaction"));
+                    }
+
+                    final displayTx = userTx.length > 10
+                        ? userTx.sublist(0, 10)
+                        : userTx;
+
+                    return ListView.builder(
+                      shrinkWrap: true, // 👈 important
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: displayTx.length,
+                      itemBuilder: (context, index) {
+                        final t =
+                            displayTx[index].data() as Map<String, dynamic>;
+                        final fromFull = t['from'] ?? '';
+                        final toFull = t['to'] ?? '';
+                        final amount = t['amount'] ?? 0;
+                        final type = t['type'] ?? '';
+                        final createdAt = t['createdAt'] != null
+                            ? (t['createdAt'] as Timestamp).toDate()
+                            : DateTime.now();
+
+                        return FutureBuilder<List<String>>(
+                          future: Future.wait([
+                            getUserNameById(fromFull),
+                            getUserNameById(toFull),
+                          ]),
+                          builder: (context, userSnapshot) {
+                            if (!userSnapshot.hasData) {
+                              return const ListTile(
+                                title: Text("Chargement..."),
+                              );
+                            }
+
+                            final fromName = userSnapshot.data![0];
+                            final toName = userSnapshot.data![1];
+                            String title = "";
+                            String subtitle = "";
+
+                            if (type == 'retrait' ||
+                                (fromFull == userUniqueId &&
+                                    (toFull.isEmpty))) {
+                              title = "Retrait";
+                              subtitle = "Vous avez retiré $amount FCFA";
+                            } else if (type == 'recharge') {
+                              title = "Recharge";
+                              subtitle =
+                                  "Vous avez rechargé votre compte de $amount FCFA";
+                            } else if (type == 'transfert') {
+                              if (extractInternalId(fromFull) == userUniqueId) {
+                                title = "Transfert d'argent";
+                                subtitle =
+                                    "Vous avez envoyé $amount FCFA à $toName";
+                              } else if (extractInternalId(toFull) ==
+                                  userUniqueId) {
+                                title = "Transfert reçu";
+                                subtitle =
+                                    "Vous avez reçu $amount FCFA de $fromName";
+                              }
+                            }
+
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Color(0xFF523B36),
+                                child: Text(
+                                  (fromName.isNotEmpty ? fromName[0] : "?")
+                                      .toUpperCase(),
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
+                              title: Text(
+                                title,
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              subtitle: Text(
+                                subtitle,
+                                style: GoogleFonts.poppins(),
+                              ),
+                              trailing: Text(
+                                timeago.format(createdAt, locale: 'fr'),
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _actionButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Widget page,
+  }) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+          },
+          child: Container(
+            height: 90,
+            width: 90,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 42),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF4E342E),
+          ),
+        ),
+      ],
+    );
+  }
+}

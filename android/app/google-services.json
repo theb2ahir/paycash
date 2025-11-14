@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "849517040817",
+    "project_id": "paycash-14e55",
+    "storage_bucket": "paycash-14e55.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:849517040817:android:2a47f82fce32c257dabe90",
+        "android_client_info": {
+          "package_name": "com.example.paycash"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBU7TUrW2QCT6sVBB4kBDzejzPJEwpv7b4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
