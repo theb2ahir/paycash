@@ -98,14 +98,6 @@ class _InscriptionState extends State<Inscription> {
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: IconThemeData(color: brown),
-        title: Text(
-          "Créer un compte",
-          style: GoogleFonts.roboto(
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-            color: brown,
-          ),
-        ),
         centerTitle: true,
       ),
 
@@ -121,7 +113,7 @@ class _InscriptionState extends State<Inscription> {
                 Text(
                   "Bienvenue sur PayCash",
                   style: GoogleFonts.poppins(
-                    fontSize: 38,
+                    fontSize: 42,
                     color: const Color(0xFF5E3B1E),
                     fontWeight: FontWeight.w600,
                   ),
@@ -132,6 +124,7 @@ class _InscriptionState extends State<Inscription> {
                 _field(
                   controller: nameCtrl,
                   label: "Nom complet",
+                  hintText: "E.g: jean gustave",
                   icon: Icons.person,
                   color: brown,
                 ),
@@ -141,6 +134,7 @@ class _InscriptionState extends State<Inscription> {
                 _field(
                   controller: emailCtrl,
                   label: "Email",
+                  hintText: "E.g: johngustave@gmail.com",
                   icon: Icons.email_outlined,
                   color: brown,
                 ),
@@ -150,6 +144,7 @@ class _InscriptionState extends State<Inscription> {
                 _field(
                   controller: phoneCtrl,
                   label: "Téléphone",
+                  hintText: "E.g: +22892349698",
                   icon: Icons.phone_android,
                   color: brown,
                 ),
@@ -164,7 +159,11 @@ class _InscriptionState extends State<Inscription> {
                   decoration: InputDecoration(
                     prefixIcon: Icon(Icons.lock_outline, color: brown),
                     labelText: "Mot de passe",
-                    labelStyle: const TextStyle(color: Colors.black),
+                    labelStyle: GoogleFonts.poppins(
+                      color: Colors.black,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                     filled: true,
                     fillColor: Color(0xFFF7EFEA),
                     border: OutlineInputBorder(
@@ -188,9 +187,12 @@ class _InscriptionState extends State<Inscription> {
         
                 const SizedBox(height: 6),
                 Row(
-                  children: const [
+                  children: [
                     Text("* 9 caractères maximum",
-                        style: TextStyle(fontSize: 13, color: Colors.black54)),
+                        style:GoogleFonts.poppins(
+                          color: Colors.red,
+                          fontSize: 12,
+                        )),
                   ],
                 ),
         
@@ -210,7 +212,7 @@ class _InscriptionState extends State<Inscription> {
                     onPressed: signup,
                     child: Text(
                       "M'inscrire",
-                      style: GoogleFonts.roboto(
+                      style: GoogleFonts.poppins(
                         color: Colors.white,
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
@@ -227,7 +229,7 @@ class _InscriptionState extends State<Inscription> {
                   children: [
                     Text(
                       "Vous avez déjà un compte ? ",
-                      style: GoogleFonts.roboto(
+                      style: GoogleFonts.poppins(
                         color: Colors.black,
                         fontSize: 16,
                       ),
@@ -241,13 +243,10 @@ class _InscriptionState extends State<Inscription> {
                       },
                       child: Text(
                         "Connectez-vous",
-                        style: TextStyle(
-                          color: brown,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          decoration: TextDecoration.underline,
-                          decorationColor: brown,
-                        ),
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFFD9B76F),
+                          fontWeight: FontWeight.bold
+                        )
                       ),
                     )
                   ],
@@ -266,6 +265,7 @@ class _InscriptionState extends State<Inscription> {
     required String label,
     required IconData icon,
     required Color color,
+    required String hintText,
   }) {
     return TextField(
       controller: controller,
@@ -273,8 +273,13 @@ class _InscriptionState extends State<Inscription> {
       style: const TextStyle(color: Colors.black),
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: color),
+        hintText: hintText,
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.black),
+        labelStyle:  GoogleFonts.poppins(
+          color: Colors.black,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
         filled: true,
         fillColor: const Color(0xFFF7EFEA),
         border: OutlineInputBorder(

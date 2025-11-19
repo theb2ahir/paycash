@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:paycash/pages/friends.dart';
 import 'historique.dart';
 import 'homepage.dart';
 import 'settings.dart';
@@ -16,6 +17,7 @@ class _AcceuilState extends State<Acceuil> {
   final List<Widget> pages = [
     const Homepage(),
     const Historique(),
+    const Friends(),
     const Settings(),
   ];
 
@@ -57,7 +59,8 @@ class _AcceuilState extends State<Acceuil> {
             currentIndex: _selectedIndex,
             onTap: _setSelectedIndex,
             type: BottomNavigationBarType.fixed,
-            selectedItemColor: Color(0xFFF3AA77), // doré clair
+            selectedItemColor: Color(0xFFF3AA77),
+            // doré clair
             unselectedItemColor: Colors.white,
             selectedFontSize: 13,
             unselectedFontSize: 12,
@@ -70,6 +73,10 @@ class _AcceuilState extends State<Acceuil> {
               BottomNavigationBarItem(
                 label: "Historique",
                 icon: Icon(Icons.history_rounded, size: 26),
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_rounded),
+                label: "Amis",
               ),
               BottomNavigationBarItem(
                 label: "Profil",

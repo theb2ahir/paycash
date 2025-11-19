@@ -9,6 +9,7 @@ import 'package:paycash/transactions/receivemoney.dart';
 import 'package:paycash/transactions/sendmoney.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
+import '../notification_service.dart';
 import '../transactions/recharge.dart';
 
 class Homepage extends StatefulWidget {
@@ -29,6 +30,68 @@ class _HomepageState extends State<Homepage> {
     fetchUserData();
     timeago.setLocaleMessages('fr', timeago.FrMessages());
   }
+  //
+  // void listenToNewTransactions(String userUniqueId) {
+  //   final firestore = FirebaseFirestore.instance;
+  //   String? lastTransactionId; // pour éviter les doublons
+  //
+  //   firestore
+  //       .collection('transactions')
+  //       .orderBy('createdAt', descending: true)
+  //       .snapshots()
+  //       .listen((snapshot) async {
+  //         for (var change in snapshot.docChanges) {
+  //           if (change.type == DocumentChangeType.added) {
+  //             final t = change.doc.data() as Map<String, dynamic>;
+  //             final fromFull = t['from'] ?? '';
+  //             final toFull = t['to'] ?? '';
+  //             final amount = t['amount'] ?? 0;
+  //             final type = t['type'] ?? '';
+  //
+  //             // éviter double notification pour la même transaction
+  //             if (change.doc.id == lastTransactionId) continue;
+  //             lastTransactionId = change.doc.id;
+  //
+  //             // vérifier si l'utilisateur est concerné
+  //             final fromId = extractInternalId(fromFull);
+  //             final toId = extractInternalId(toFull);
+  //
+  //             // attendre les noms
+  //             final fromName = await getUserName(fromFull);
+  //             final toName = await getUserName(toFull);
+  //
+  //             if (fromId == userUniqueId || toId == userUniqueId) {
+  //               String title = "";
+  //               String body = "";
+  //
+  //               if (type == 'retrait' ||
+  //                   (fromId == userUniqueId && toFull.isEmpty)) {
+  //                 title = "📷 Retrait";
+  //                 body = "Vous avez retiré $amount FCFA";
+  //               } else if (type == 'recharge') {
+  //                 title = "💰 Recharge";
+  //                 body = "Vous avez rechargé votre compte de $amount FCFA";
+  //               } else if (type == 'transfert') {
+  //                 if (fromId == userUniqueId) {
+  //                   title = "💸 Transfert envoyé";
+  //                   body = "Vous avez envoyé $amount FCFA à $toName";
+  //                 } else if (toId == userUniqueId) {
+  //                   title = "💸 Transfert reçu";
+  //                   body = "Vous avez reçu $amount FCFA de $fromName";
+  //                 }
+  //               }
+  //
+  //               if (title.isNotEmpty && body.isNotEmpty) {
+  //                 NotificationService.showNotification(
+  //                   title: title,
+  //                   body: body,
+  //                 );
+  //               }
+  //             }
+  //           }
+  //         }
+  //       });
+  // }
 
   // Extraction de l'ID interne pour comparer localement (utilisé pour filtrer)
   String extractInternalId(String fullId) {
@@ -59,6 +122,24 @@ class _HomepageState extends State<Homepage> {
 
   // Récupérer le nom de l'utilisateur via son idUnique complet
   Future<String> getUserNameById(String fullIdUnique) async {
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('users')
+          .where('idUnique', isEqualTo: fullIdUnique)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        return query.docs.first['name'] ?? "Inconnu(e)";
+      } else {
+        return "Inconnu(e)";
+      }
+    } catch (e) {
+      return "Inconnu(e)";
+    }
+  }
+
+  Future<String> getUserName(String fullIdUnique) async {
     try {
       final query = await FirebaseFirestore.instance
           .collection('users')
@@ -356,7 +437,7 @@ class _HomepageState extends State<Homepage> {
                     }
 
                     final displayTx = userTx.length > 10
-                        ? userTx.sublist(0, 10)
+                        ? userTx.sublist(0, 5)
                         : userTx;
 
                     return ListView.builder(
@@ -370,6 +451,7 @@ class _HomepageState extends State<Homepage> {
                         final toFull = t['to'] ?? '';
                         final amount = t['amount'] ?? 0;
                         final type = t['type'] ?? '';
+                        final statut = t['status'] ?? '';
                         final createdAt = t['createdAt'] != null
                             ? (t['createdAt'] as Timestamp).toDate()
                             : DateTime.now();
@@ -415,26 +497,53 @@ class _HomepageState extends State<Homepage> {
 
                             return ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: Color(0xFF523B36),
+                                backgroundColor: const Color(0xFF523B36),
                                 child: Text(
                                   (fromName.isNotEmpty ? fromName[0] : "?")
                                       .toUpperCase(),
                                   style: const TextStyle(color: Colors.white),
                                 ),
                               ),
-                              title: Text(
-                                title,
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              title: Row(
+                                children: [
+                                  Text(
+                                    title,
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Icon(
+                                    statut == "terminée"
+                                        ? Icons.check_circle
+                                        : statut == "en_attente"
+                                        ? Icons.access_time
+                                        : Icons.cancel,
+                                    color: statut == "terminée"
+                                        ? Colors.green
+                                        : statut == "en_attente"
+                                        ? Colors.orange
+                                        : Colors.red,
+                                    size: 15,
+                                  ),
+                                ],
                               ),
-                              subtitle: Text(
-                                subtitle,
-                                style: GoogleFonts.poppins(),
-                              ),
-                              trailing: Text(
-                                timeago.format(createdAt, locale: 'fr'),
-                                style: const TextStyle(fontSize: 12),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(subtitle, style: GoogleFonts.poppins()),
+                                  const SizedBox(height: 1),
+                                  Align(
+                                    alignment: Alignment.bottomRight,
+                                    child: Text(
+                                      timeago.format(createdAt, locale: 'fr'),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
                           },

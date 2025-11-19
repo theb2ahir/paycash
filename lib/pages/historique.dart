@@ -84,206 +84,227 @@ class _HistoriqueState extends State<Historique> {
         shadowColor: Colors.brown,
       ),
 
-      body: StreamBuilder<QuerySnapshot>(
-        stream: firestore
-            .collection('transactions')
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final allTx = snapshot.data!.docs;
-          final userTx = allTx.where((doc) {
-            final t = doc.data() as Map<String, dynamic>;
-            final from = extractInternalId(t['from'] ?? '');
-            final to = extractInternalId(t['to'] ?? '');
-            return from == userUniqueId || to == userUniqueId;
-          }).toList();
-
-          if (userTx.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.hourglass_empty_rounded,
-                      size: 80, color: Colors.brown),
-                  const SizedBox(height: 16),
-                  Text(
-                    "Aucune transaction pour le moment",
-                    style: GoogleFonts.poppins(
-                      color: Colors.brown[700],
-                      fontSize: 16,
+      body: SafeArea(
+        child: StreamBuilder<QuerySnapshot>(
+          stream: firestore
+              .collection('transactions')
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+        
+            final allTx = snapshot.data!.docs;
+            final userTx = allTx.where((doc) {
+              final t = doc.data() as Map<String, dynamic>;
+              final from = extractInternalId(t['from'] ?? '');
+              final to = extractInternalId(t['to'] ?? '');
+              return from == userUniqueId || to == userUniqueId;
+            }).toList();
+        
+            if (userTx.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.hourglass_empty_rounded,
+                        size: 80, color: Colors.brown),
+                    const SizedBox(height: 16),
+                    Text(
+                      "Aucune transaction pour le moment",
+                      style: GoogleFonts.poppins(
+                        color: Colors.brown[700],
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: userTx.length,
-            itemBuilder: (context, index) {
-              final t = userTx[index].data() as Map<String, dynamic>;
-              final fromFull = t['from'] ?? '';
-              final toFull = t['to'] ?? '';
-              final fromId = extractInternalId(fromFull);
-              final toId = extractInternalId(toFull);
-              final amount = t['amount'] ?? 0;
-              final type = t['type'] ?? '';
-              final createdAt = t['createdAt'] != null
-                  ? (t['createdAt'] as Timestamp).toDate()
-                  : DateTime.now();
-
-              return FutureBuilder<List<String>>(
-                future: Future.wait([
-                  getUserNameById(fromFull),
-                  getUserNameById(toFull),
-                ]),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return Container(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.brown,
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(strokeWidth: 2),
-                        ],
-                      ),
-                    );
-                  }
-
-                  final fromName = snapshot.data![0];
-                  final toName = snapshot.data![1];
-
-                  String title = "";
-                  String subtitle = "";
-                  IconData icon;
-                  Color color;
-
-                  if (type == 'retrait' ||
-                      (fromId == userUniqueId && toFull.isEmpty)) {
-                    title = "Retrait";
-                    subtitle = "Vous avez retiré $amount FCFA";
-                    icon = Icons.arrow_downward_rounded;
-                    color = Colors.orangeAccent;
-                  } else if (type == 'recharge') {
-                    title = "Recharge";
-                    subtitle = "Vous avez rechargé $amount FCFA";
-                    icon = Icons.add_circle_outline_rounded;
-                    color = Colors.blueAccent;
-                  } else if (type == 'transfert') {
-                    if (fromId == userUniqueId) {
-                      title = "Transfert envoyé";
-                      subtitle = "À $toName : $amount FCFA";
-                      icon = Icons.call_made_rounded;
-                      color = Colors.redAccent;
-                    } else if (toId == userUniqueId) {
-                      title = "Transfert reçu";
-                      subtitle = "De $fromName : $amount FCFA";
-                      icon = Icons.call_received_rounded;
-                      color = Colors.green;
+                  ],
+                ),
+              );
+            }
+        
+            return ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: userTx.length,
+              itemBuilder: (context, index) {
+                final t = userTx[index].data() as Map<String, dynamic>;
+                final fromFull = t['from'] ?? '';
+                final toFull = t['to'] ?? '';
+                final fromId = extractInternalId(fromFull);
+                final toId = extractInternalId(toFull);
+                final statut = t['status'] ?? '';
+                final amount = t['amount'] ?? 0;
+                final type = t['type'] ?? '';
+                final createdAt = t['createdAt'] != null
+                    ? (t['createdAt'] as Timestamp).toDate()
+                    : DateTime.now();
+        
+                return FutureBuilder<List<String>>(
+                  future: Future.wait([
+                    getUserNameById(fromFull),
+                    getUserNameById(toFull),
+                  ]),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.brown,
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(strokeWidth: 2),
+                          ],
+                        ),
+                      );
+                    }
+        
+                    final fromName = snapshot.data![0];
+                    final toName = snapshot.data![1];
+        
+                    String title = "";
+                    String subtitle = "";
+                    IconData icon;
+                    Color color;
+        
+                    if (type == 'retrait' ||
+                        (fromId == userUniqueId && toFull.isEmpty)) {
+                      title = "Retrait";
+                      subtitle = "Vous avez retiré $amount FCFA";
+                      icon = Icons.arrow_downward_rounded;
+                      color = Colors.orangeAccent;
+                    } else if (type == 'recharge') {
+                      title = "Recharge";
+                      subtitle = "Vous avez rechargé $amount FCFA";
+                      icon = Icons.add_circle_outline_rounded;
+                      color = Colors.blueAccent;
+                    } else if (type == 'transfert') {
+                      if (fromId == userUniqueId) {
+                        title = "Transfert";
+                        subtitle = "À $toName : $amount FCFA";
+                        icon = Icons.call_made_rounded;
+                        color = Colors.redAccent;
+                      } else if (toId == userUniqueId) {
+                        title = "Transfert reçu";
+                        subtitle = "De $fromName : $amount FCFA";
+                        icon = Icons.call_received_rounded;
+                        color = Colors.green;
+                      } else {
+                        title = "Transfert";
+                        subtitle = "$amount FCFA";
+                        icon = Icons.swap_horiz_rounded;
+                        color = Colors.grey;
+                      }
                     } else {
-                      title = "Transfert";
+                      title = "Transaction";
                       subtitle = "$amount FCFA";
                       icon = Icons.swap_horiz_rounded;
                       color = Colors.grey;
                     }
-                  } else {
-                    title = "Transaction";
-                    subtitle = "$amount FCFA";
-                    icon = Icons.swap_horiz_rounded;
-                    color = Colors.grey;
-                  }
-
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeInOut,
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.brown,
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 24,
-                          backgroundColor: color.withOpacity(0.15),
-                          child: Icon(icon, color: color, size: 28),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+        
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeInOut,
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.brown,
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundColor: color.withOpacity(0.15),
+                            child: Icon(icon, color: color, size: 28),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      title,
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                        color: Colors.brown[800],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Icon(
+                                      statut == "terminée"
+                                          ? Icons.check_circle
+                                          : statut == "en_attente"
+                                          ? Icons.access_time
+                                          : Icons.cancel,
+                                      color: statut == "terminée"
+                                          ? Colors.green
+                                          : statut == "en_attente"
+                                          ? Colors.orange
+                                          : Colors.red,
+                                      size: 15,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  subtitle,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: Colors.brown[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                title,
+                                "$amount FCFA",
                                 style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                  color: Colors.brown[800],
+                                  fontWeight: FontWeight.bold,
+                                  color: color,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                subtitle,
+                                timeago.format(createdAt, locale: 'fr'),
                                 style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  color: Colors.brown[500],
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              "$amount FCFA",
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
-                                color: color,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              timeago.format(createdAt, locale: 'fr'),
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            },
-          );
-        },
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

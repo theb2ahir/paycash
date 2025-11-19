@@ -73,39 +73,71 @@ class _ReceiveMoneyState extends State<ReceiveMoney> {
     final scaneventsref = _firestore.collection('scanevents');
 
     scaneventsref
-        .where('scanned_user_id', isEqualTo: idUnique )
+        .where('scanned_user_id', isEqualTo: idUnique)
         .orderBy('timestamp', descending: true)
         .limit(1)
         .snapshots()
         .listen((snapshot) async {
-      if (snapshot.docs.isNotEmpty) {
-        final data = snapshot.docs.first.data();
-        senderDocId = snapshot.docs.first.id;
-        final senderId = data['scanner_user_id'];
+          if (snapshot.docs.isNotEmpty) {
+            final doc = snapshot.docs.first;
+            final data = doc.data();
+            senderDocId = doc.id;
+            final senderId = data['scanner_user_id'];
 
-        if (senderId != null && senderId != idUnique) {
-          await _loadScannerData(senderId);
-          await NotificationService.showNotification(
-            title: "💰 Paiement reçu",
-            body: "${senderName} vous a envoyé ${data['montant']  ?? 'un montant'} FCFA.",
-          );
-        }
-      } else {
-        // Si plus de scan → reset l'affichage
-        setState(() {
-          senderName = '';
-          senderPhone = '';
-          senderIdUnique = '';
-          senderDocId = '';
+            if (senderId != null && senderId != idUnique) {
+              // Charger infos de l'envoyeur
+              await _loadScannerData(senderId);
+
+              // 🔔 Notification scan QR
+              if (data['notified_scan'] == true &&
+                  (data['notified_scan_sent'] == null ||
+                      data['notified_scan_sent'] == false)) {
+                await NotificationService.showNotification(
+                  title: "📷 QR Code scanné",
+                  body: "${senderName} a scanné votre QR code.",
+                );
+
+                // Marquer que la notif de scan a été envoyée
+                await scaneventsref.doc(senderDocId).update({
+                  'notified_scan_sent': true,
+                });
+              }
+
+              // 🔔 Notification paiement après transaction
+              if (data['notified_payment'] == true &&
+                  (data['notified_payment_sent'] == null ||
+                      data['notified_payment_sent'] == false)) {
+                await NotificationService.showNotification(
+                  title: "💰 Paiement reçu",
+                  body:
+                      "${senderName} a envoyé ${data['montant']?.toStringAsFixed(0) ?? ''} FCFA",
+                );
+
+                // Marquer que la notif de paiement a été envoyée
+                await scaneventsref.doc(senderDocId).update({
+                  'notified_payment_sent': true,
+                });
+              }
+            }
+          } else {
+            // Reset affichage si plus de scan
+            setState(() {
+              senderName = '';
+              senderPhone = '';
+              senderIdUnique = '';
+              senderDocId = '';
+            });
+          }
         });
-      }
-    });
   }
 
   // 📩 Charge les informations de l’envoyeur
   Future<void> _loadScannerData(String senderId) async {
     try {
-      final document = await _firestore.collection('users').doc(extractInternalId(senderId)).get();
+      final document = await _firestore
+          .collection('users')
+          .doc(extractInternalId(senderId))
+          .get();
       if (document.exists) {
         final data = document.data()!;
         setState(() {
@@ -227,21 +259,28 @@ class _ReceiveMoneyState extends State<ReceiveMoney> {
               child: Center(
                 child: _qrGenerated
                     ? QrImageView(
-                  data: qrData,
-                  size: 220,
-                  backgroundColor: Colors.white,
-                )
+                        data: qrData,
+                        size: 220,
+                        backgroundColor: Colors.white,
+                      )
                     : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.qr_code_2,
-                        size: 70, color: Color(0xFF8B5E3C)),
-                    SizedBox(height: 10),
-                    Text("QR code non généré",
-                        style: TextStyle(
-                            fontSize: 16, color: Color(0xFF5A3E2B))),
-                  ],
-                ),
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(
+                            Icons.qr_code_2,
+                            size: 70,
+                            color: Color(0xFF8B5E3C),
+                          ),
+                          SizedBox(height: 10),
+                          Text(
+                            "QR code non généré",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Color(0xFF5A3E2B),
+                            ),
+                          ),
+                        ],
+                      ),
               ),
             ),
 
@@ -267,13 +306,118 @@ class _ReceiveMoneyState extends State<ReceiveMoney> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "Détails de l'envoyeur",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.brown.shade700,
-                        fontSize: 17,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Détails de l'envoyeur",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.brown.shade700,
+                            fontSize: 17,
+                          ),
+                        ),
+
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3E2723),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: IconButton(
+                            onPressed: () async {
+                              final uid =
+                                  FirebaseAuth.instance.currentUser!.uid;
+                              final friendId = senderIdUnique;
+
+                              if (friendId == null) return;
+
+                              try {
+                                // 1️⃣ Ajouter à tes amis si ce n'est pas déjà fait
+                                final friendsRef = FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(uid)
+                                    .collection('friends');
+
+                                final existing = await friendsRef
+                                    .where('friend', isEqualTo: friendId)
+                                    .get();
+
+                                if (existing.docs.isEmpty) {
+                                  await friendsRef.add({'friend': friendId});
+
+                                  // 2️⃣ Envoyer une demande côté ami
+                                  final friendQuery = await FirebaseFirestore
+                                      .instance
+                                      .collection('users')
+                                      .where('idUnique', isEqualTo: friendId)
+                                      .limit(1)
+                                      .get();
+
+                                  if (friendQuery.docs.isNotEmpty) {
+                                    final sender = _auth.currentUser!;
+                                    final senderDocRef = _firestore
+                                        .collection('users')
+                                        .doc(sender.uid);
+                                    final senderSnapshot = await senderDocRef
+                                        .get();
+                                    final senderuniquedmanid =
+                                        senderSnapshot['idUnique'] ?? 0;
+                                    final friendDocId =
+                                        friendQuery.docs.first.id;
+                                    await FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(friendDocId)
+                                        .collection('friendrequest')
+                                        .add({'request': senderuniquedmanid});
+                                  }
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      backgroundColor: const Color(
+                                        0xFF8B4513,
+                                      ), // marron
+                                      content: Text(
+                                        "$senderName ajouté(e) à vos ami(e)s et la demande a été envoyée",
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      backgroundColor: Colors.orange,
+                                      content: Text(
+                                        "$senderName est déjà dans vos ami(e)s",
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    backgroundColor: Colors.red,
+                                    content: Text(
+                                      "Erreur: $e",
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(
+                              Icons.person_add,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 15),
 
@@ -298,7 +442,9 @@ class _ReceiveMoneyState extends State<ReceiveMoney> {
                             Text(
                               senderName,
                               style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 18),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
                             ),
                             Text(
                               senderPhone,
