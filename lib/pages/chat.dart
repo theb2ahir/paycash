@@ -19,6 +19,8 @@ class _ChatPageState extends State<ChatPage> {
   final String myId = FirebaseAuth.instance.currentUser!.uid;
   final TextEditingController _controller = TextEditingController();
 
+  bool isFirstLoad = true;
+
   Color primaryColor = const Color(0xFF8B4513); // marron
   Color backgroundColor = Colors.white;
 
@@ -45,6 +47,14 @@ class _ChatPageState extends State<ChatPage> {
         .orderBy("timestamp", descending: false)
         .snapshots()
         .listen((snapshot) {
+          if (isFirstLoad) {
+            isFirstLoad = false;
+            if (snapshot.docs.isNotEmpty) {
+              lastNotifiedMessageId = snapshot.docs.last.id;
+            }
+            return;
+          }
+
           for (var change in snapshot.docChanges) {
             if (change.type == DocumentChangeType.added) {
               final msg = change.doc.data() as Map<String, dynamic>;
@@ -65,6 +75,72 @@ class _ChatPageState extends State<ChatPage> {
 
   String getConversationID(String a, String b) {
     return a.hashCode <= b.hashCode ? "${a}_$b" : "${b}_$a";
+  }
+
+  void _showDeleteConversationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            "Supprimer la conversation",
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            "Voulez-vous vraiment supprimer tous les messages ?",
+            style: GoogleFonts.poppins(),
+          ),
+          actions: [
+            TextButton(
+              child: Text(
+                "Annuler",
+                style: GoogleFonts.poppins(color: Colors.grey),
+              ),
+              onPressed: () => Navigator.pop(context),
+            ),
+            TextButton(
+              child: Text(
+                "Supprimer",
+                style: GoogleFonts.poppins(color: Colors.red),
+              ),
+              onPressed: () async {
+                Navigator.pop(context);
+                await deleteEntireConversation();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> deleteEntireConversation() async {
+    final messagesRef = firestore
+        .collection("conversations")
+        .doc(conversationID)
+        .collection("messages");
+
+    final messages = await messagesRef.get();
+
+    for (var doc in messages.docs) {
+      await doc.reference.delete();
+    }
+
+    // Reset conversation metadata
+    await firestore.collection("conversations").doc(conversationID).update({
+      "lastMessage": "",
+      "updatedAt": FieldValue.serverTimestamp(),
+    });
+
+    // Optionnel : message toast
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Conversation supprimée", style: GoogleFonts.poppins()),
+        backgroundColor: primaryColor,
+      ),
+    );
+
+    setState(() {});
   }
 
   Future<void> sendMessage(String text) async {
@@ -105,6 +181,29 @@ class _ChatPageState extends State<ChatPage> {
             fontSize: 25,
           ),
         ),
+        actions: [
+          PopupMenuButton<String>(
+            color: Colors.white,
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onSelected: (value) {
+              if (value == "delete_conversation") {
+                _showDeleteConversationDialog();
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: "delete_conversation",
+                child: Text(
+                  "Supprimer la conversation",
+                  style: GoogleFonts.poppins(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(

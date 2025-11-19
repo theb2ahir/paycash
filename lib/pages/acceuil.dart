@@ -79,7 +79,7 @@ class _AcceuilState extends State<Acceuil> {
                 label: "Amis",
               ),
               BottomNavigationBarItem(
-                label: "Profil",
+                label: "Paramètres",
                 icon: Icon(Icons.settings_rounded, size: 26),
               ),
             ],
