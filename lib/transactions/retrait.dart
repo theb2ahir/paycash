@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:paycash/transactions/paymentsucces.dart';
 import 'dart:convert';
 
 import '../notification_service.dart';
@@ -23,6 +24,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
   double _currentBalance = 0;
   bool _isProcessing = false;
   String _selectedOperator = 'YAS';
+  final String backendUrl = "https://paycash-d2q6.onrender.com";
 
   @override
   void initState() {
@@ -65,11 +67,9 @@ class _WithdrawPageState extends State<WithdrawPage> {
 
     try {
       final user = _auth.currentUser!;
-      final userRef = _firestore.collection('users').doc(user.uid);
 
-      // 🔹 Appel backend /withdraw
       final response = await http.post(
-        Uri.parse("http://localhost:3000/withdraw"),
+        Uri.parse("$backendUrl/withdraw"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'amount': amount,
@@ -82,24 +82,21 @@ class _WithdrawPageState extends State<WithdrawPage> {
         final data = jsonDecode(response.body);
 
         if (data['status'] == 'success') {
-          // 🔹 Retrait validé → update Firestore
+          // 🔹 Mettre à jour Firestore
+          final userRef = _firestore.collection('users').doc(user.uid);
           await _firestore.runTransaction((transaction) async {
             final snapshot = await transaction.get(userRef);
-            final currentBalance =
-                (snapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
-
-            if (currentBalance < amount) throw Exception("Solde insuffisant");
+            final currentBalance = (snapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
 
             transaction.update(userRef, {'balance': currentBalance - amount});
 
-            final transactionRef =
-            _firestore.collection('transactions').doc();
+            final transactionRef = _firestore.collection('transactions').doc();
             transaction.set(transactionRef, {
               'amount': amount,
               'from': snapshot.data()?['idUnique'] ?? '',
-              'to': "",
+              'to': phone,
               'type': 'retrait',
-              'status': 'terminé',
+              'status': 'terminée',
               'operator': _selectedOperator,
               'createdAt': FieldValue.serverTimestamp(),
             });
@@ -109,29 +106,26 @@ class _WithdrawPageState extends State<WithdrawPage> {
           _phoneController.clear();
           _loadBalance();
 
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text("Succès"),
-              content: Text("$amount FCFA retiré avec succès vers $phone ✅"),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("OK"),
-                ),
-              ],
-            ),
-          );
-
           NotificationService.showNotification(
             title: "Retrait réussi",
             body: "Vous avez retiré $amount FCFA vers $phone.",
           );
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PaymentSuccessPage(
+                title: "Retrait réussi",
+                amount: amount,
+                operator: _selectedOperator,
+                reference: data['data']['transaction_id'] ?? "",
+                paymentUrl: backendUrl, // Retrait simple, peut rester backend
+              ),
+            ),
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(
-                    "Échec du retrait : ${data['message'] ?? 'Erreur'}")),
+            SnackBar(content: Text("Échec du retrait : ${data['message'] ?? 'Erreur'}")),
           );
         }
       } else {
@@ -141,7 +135,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur : ${e ?? ''}")),
+        SnackBar(content: Text("Erreur : $e")),
       );
     } finally {
       setState(() => _isProcessing = false);
@@ -160,10 +154,11 @@ class _WithdrawPageState extends State<WithdrawPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        automaticallyImplyLeading: false,
         backgroundColor: const Color(0xFF8B5E3C),
-        title: const Text("Retirer de l'argent",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Retirer de l'argent",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -197,17 +192,23 @@ class _WithdrawPageState extends State<WithdrawPage> {
     ),
     child: Column(
       children: [
-        Text("Solde actuel",
-            style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF5A3E2B))),
+        Text(
+          "Solde actuel",
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF5A3E2B),
+          ),
+        ),
         const SizedBox(height: 10),
-        Text("$_currentBalance FCFA",
-            style: GoogleFonts.poppins(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF8B5E3C))),
+        Text(
+          "$_currentBalance FCFA",
+          style: GoogleFonts.poppins(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF8B5E3C),
+          ),
+        ),
       ],
     ),
   );
@@ -220,10 +221,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
     ),
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _chip("YAS"),
-        _chip("MOOV"),
-      ],
+      children: [_chip("YAS"), _chip("MOOV")],
     ),
   );
 
@@ -266,14 +264,14 @@ class _WithdrawPageState extends State<WithdrawPage> {
       onPressed: _isProcessing ? null : onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF8B5E3C),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       child: _isProcessing
           ? const CircularProgressIndicator(color: Colors.white)
-          : Text(label,
-          style: const TextStyle(fontSize: 20, color: Colors.white)),
+          : Text(
+        label,
+        style: const TextStyle(fontSize: 20, color: Colors.white),
+      ),
     ),
   );
 }

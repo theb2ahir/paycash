@@ -32,6 +32,19 @@ class _InscriptionState extends State<Inscription> {
     }
 
     try {
+      if (!emailCtrl.text.contains('@gmail.com')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.red,
+            content: Text(
+              "Email invalide , vérifiez votre adresse",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        );
+        return;
+      }
+
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -79,7 +92,7 @@ class _InscriptionState extends State<Inscription> {
       Future.delayed(const Duration(seconds: 2), () {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const Acceuil()),
-              (Route<dynamic> route) => false,
+          (Route<dynamic> route) => false,
         );
       });
     } catch (e) {
@@ -109,7 +122,7 @@ class _InscriptionState extends State<Inscription> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 30),
-        
+
                 Text(
                   "Bienvenue sur PayCash",
                   style: GoogleFonts.poppins(
@@ -119,7 +132,7 @@ class _InscriptionState extends State<Inscription> {
                   ),
                 ),
                 const SizedBox(height: 35),
-        
+
                 // ⭐ Champ Nom
                 _field(
                   controller: nameCtrl,
@@ -129,7 +142,7 @@ class _InscriptionState extends State<Inscription> {
                   color: brown,
                 ),
                 const SizedBox(height: 20),
-        
+
                 // ⭐ Champ Email
                 _field(
                   controller: emailCtrl,
@@ -139,7 +152,7 @@ class _InscriptionState extends State<Inscription> {
                   color: brown,
                 ),
                 const SizedBox(height: 20),
-        
+
                 // ⭐ Champ Téléphone
                 _field(
                   controller: phoneCtrl,
@@ -149,7 +162,7 @@ class _InscriptionState extends State<Inscription> {
                   color: brown,
                 ),
                 const SizedBox(height: 20),
-        
+
                 // ⭐ Mot de Passe
                 TextField(
                   controller: passwordCtrl,
@@ -176,7 +189,9 @@ class _InscriptionState extends State<Inscription> {
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                         color: brown,
                       ),
                       onPressed: () =>
@@ -184,20 +199,22 @@ class _InscriptionState extends State<Inscription> {
                     ),
                   ),
                 ),
-        
+
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    Text("* 9 caractères maximum",
-                        style:GoogleFonts.poppins(
-                          color: Colors.red,
-                          fontSize: 12,
-                        )),
+                    Text(
+                      "* 9 caractères maximum",
+                      style: GoogleFonts.poppins(
+                        color: Colors.red,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
-        
+
                 const SizedBox(height: 35),
-        
+
                 // ⭐ BOUTON INSCRIPTION
                 SizedBox(
                   width: double.infinity,
@@ -220,9 +237,9 @@ class _InscriptionState extends State<Inscription> {
                     ),
                   ),
                 ),
-        
+
                 const SizedBox(height: 25),
-        
+
                 // ⭐ Déjà un compte ?
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -245,12 +262,12 @@ class _InscriptionState extends State<Inscription> {
                         "Connectez-vous",
                         style: GoogleFonts.poppins(
                           color: const Color(0xFFD9B76F),
-                          fontWeight: FontWeight.bold
-                        )
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    )
+                    ),
                   ],
-                )
+                ),
               ],
             ),
           ),
@@ -275,7 +292,7 @@ class _InscriptionState extends State<Inscription> {
         prefixIcon: Icon(icon, color: color),
         hintText: hintText,
         labelText: label,
-        labelStyle:  GoogleFonts.poppins(
+        labelStyle: GoogleFonts.poppins(
           color: Colors.black,
           fontSize: 16,
           fontWeight: FontWeight.w600,

@@ -38,9 +38,15 @@ class _ConnectionState extends State<Connection> {
 
     if (!doc.exists) {
       // Création
+      String idUnique = '${displayName}_pay_${phone}_cash_${doc.id}_id';
+
       await userRef.set({
         "email": email,
         "name": displayName ?? "",
+        'phone': phone ?? "",
+        'idUnique': idUnique,
+        'status': "active",
+        'balance': 0,
         "createdAt": FieldValue.serverTimestamp(),
       });
     } else {

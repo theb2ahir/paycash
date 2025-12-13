@@ -402,11 +402,6 @@ class _SettingsState extends State<Settings> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.brown[300],
-        onPressed: () {},
-        child: const Icon(Icons.chat_bubble_outline, color: Colors.brown),
-      ),
     );
   }
 

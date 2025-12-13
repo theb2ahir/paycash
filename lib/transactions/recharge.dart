@@ -3,8 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:paycash/transactions/paymentsucces.dart';
 import 'dart:convert';
 
+import 'facture.dart';
 import '../notification_service.dart';
 
 class RechargePage extends StatefulWidget {
@@ -22,6 +24,7 @@ class _RechargePageState extends State<RechargePage> {
   bool _isProcessing = false;
   double _currentBalance = 0;
   String _selectedOperator = 'YAS';
+  final String backendUrl = "https://paycash-d2q6.onrender.com";
 
   @override
   void initState() {
@@ -55,11 +58,9 @@ class _RechargePageState extends State<RechargePage> {
 
     try {
       final user = _auth.currentUser!;
-      final userRef = _firestore.collection('users').doc(user.uid);
 
-      // 🔹 Appel backend PayDunya
       final response = await http.post(
-        Uri.parse("http://localhost:3000/recharge"), // change selon ton backend
+        Uri.parse("$backendUrl/recharge"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'amount': amount,
@@ -70,57 +71,32 @@ class _RechargePageState extends State<RechargePage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
+        print("Réponse backend: $data"); //
         if (data['status'] == 'success') {
-          // 🔹 Recharge validée → update Firestore
-          await _firestore.runTransaction((transaction) async {
-            final snapshot = await transaction.get(userRef);
-            final currentBalance =
-                (snapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+          final token = data['token'];
+          final paymentUrl = data['payment_url'];
 
-            transaction.update(userRef, {'balance': currentBalance + amount});
-
-            final transactionRef =
-            _firestore.collection('transactions').doc();
-            transaction.set(transactionRef, {
-              'amount': amount,
-              'from': snapshot.data()?['idUnique'] ?? '',
-              'to': '',
-              'type': 'recharge',
-              'status': 'terminé',
-              'operator': _selectedOperator,
-              'createdAt': FieldValue.serverTimestamp(),
-            });
-          });
-
-          _amountController.clear();
-          _loadBalance();
-
-          // 🔹 Dialog succès
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text("Succès"),
-              content: Text(
-                  "Recharge de $amount FCFA via $_selectedOperator réussie ✅"),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("OK"),
+          if (paymentUrl != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PaymentSuccessPage(
+                  title: "Recharge réussie",
+                  amount: amount,
+                  operator: _selectedOperator,
+                  reference: token ?? "",
+                  paymentUrl: paymentUrl,
                 ),
-              ],
-            ),
-          );
-
-          NotificationService.showNotification(
-            title: "Recharge réussie",
-            body: "Vous avez rechargé $amount FCFA via $_selectedOperator.",
-          );
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Impossible de récupérer l'URL de paiement")),
+            );
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(
-                    "Échec de la recharge : ${data['message'] ?? 'Erreur'}")),
+            SnackBar(content: Text("Erreur : ${data['message'] ?? 'Erreur'}")),
           );
         }
       } else {
@@ -130,7 +106,7 @@ class _RechargePageState extends State<RechargePage> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur : ${e ?? ''}")),
+        SnackBar(content: Text("Erreur : $e")),
       );
     } finally {
       setState(() => _isProcessing = false);
@@ -150,8 +126,10 @@ class _RechargePageState extends State<RechargePage> {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         backgroundColor: const Color(0xFF8B5E3C),
-        title: const Text("Recharger mon compte",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Recharger mon compte",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -183,17 +161,23 @@ class _RechargePageState extends State<RechargePage> {
     ),
     child: Column(
       children: [
-        Text("Solde actuel",
-            style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF5A3E2B))),
+        Text(
+          "Solde actuel",
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF5A3E2B),
+          ),
+        ),
         const SizedBox(height: 10),
-        Text("$_currentBalance FCFA",
-            style: GoogleFonts.poppins(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF8B5E3C))),
+        Text(
+          "$_currentBalance FCFA",
+          style: GoogleFonts.poppins(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF8B5E3C),
+          ),
+        ),
       ],
     ),
   );
@@ -206,10 +190,7 @@ class _RechargePageState extends State<RechargePage> {
     ),
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _chip("YAS"),
-        _chip("MOOV"),
-      ],
+      children: [_chip("YAS"), _chip("MOOV")],
     ),
   );
 
@@ -242,14 +223,14 @@ class _RechargePageState extends State<RechargePage> {
       onPressed: _isProcessing ? null : onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF8B5E3C),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       child: _isProcessing
-          ? const CircularProgressIndicator(color: Colors.white)
-          : Text(label,
-          style: const TextStyle(fontSize: 20, color: Colors.white)),
+          ? const CircularProgressIndicator(color: Color(0xFF8B5E3C))
+          : Text(
+        label,
+        style: const TextStyle(fontSize: 20, color: Colors.white),
+      ),
     ),
   );
 }

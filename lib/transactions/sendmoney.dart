@@ -524,6 +524,7 @@ class _SendMoneyState extends State<SendMoney> {
                   cursorColor: const Color(0xFF5E3B1E),
                   decoration: InputDecoration(
                     labelText: "Numéro de téléphone",
+                    hintText: "E.g: +22899999999",
                     labelStyle: GoogleFonts.poppins(
                       color: Colors.black,
                       fontSize: 16,

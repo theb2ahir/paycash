@@ -183,7 +183,7 @@ class _HistoriqueState extends State<Historique> {
                       icon = Icons.arrow_downward_rounded;
                       color = Colors.orangeAccent;
                     } else if (type == 'recharge') {
-                      title = "Recharge";
+                      title = "recharge";
                       subtitle = "Vous avez rechargé $amount FCFA";
                       icon = Icons.add_circle_outline_rounded;
                       color = Colors.blueAccent;
