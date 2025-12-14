@@ -1,12 +1,15 @@
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'dart:convert';
+import 'package:bcrypt/bcrypt.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:qr_code_scanner_plus/qr_code_scanner_plus.dart';
 
 import '../notification_service.dart';
-import '../pages/friends.dart';
 
 class SendMoney extends StatefulWidget {
   const SendMoney({super.key});
@@ -27,6 +30,21 @@ class _SendMoneyState extends State<SendMoney> {
 
   Map<String, dynamic>? recipientData;
   bool _isSending = false;
+  String enteredPin = "";
+
+  Future<String> getUserPin() async {
+    final uid = _auth.currentUser!.uid;
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+
+    final data = userDoc.data()!;
+    return data['pin']; // ⚠️ hash, pas pin clair
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    getUserPin();
+  }
 
   Future<void> _searchUser() async {
     final phone = phoneController.text.trim();
@@ -256,16 +274,159 @@ class _SendMoneyState extends State<SendMoney> {
 
             // --- Bouton Scan ---
             GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => QRScannerPage(
-                    onScan: (data) {
-                      setState(() => recipientData = data);
-                    },
-                  ),
-                ),
-              ),
+              onTap: () {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) {
+                    return StatefulBuilder(
+                      builder: (context, setState) {
+                        Color pinColor;
+                        if (enteredPin.length < 4) {
+                          pinColor = Colors.red;
+                        } else if (enteredPin.length < 6) {
+                          pinColor = Colors.orange;
+                        } else {
+                          pinColor = Colors.green;
+                        }
+
+                        return AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                "Entrez votre code PIN de sécurité",
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 22,
+                                  color: const Color(0xFF4E342E),
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+
+                              /// 🔐 PIN CODE FIELD
+                              PinCodeTextField(
+                                appContext: context,
+                                length: 6,
+                                obscureText: true,
+                                obscuringCharacter: "●",
+                                keyboardType: TextInputType.number,
+                                animationType: AnimationType.fade,
+                                enableActiveFill: true,
+                                pinTheme: PinTheme(
+                                  shape: PinCodeFieldShape.box,
+                                  borderRadius: BorderRadius.circular(12),
+                                  fieldHeight: 45,
+                                  fieldWidth: 43,
+                                  inactiveFillColor: Colors.white,
+                                  selectedFillColor: Colors.white,
+                                  activeFillColor: Colors.white,
+                                  inactiveColor: pinColor,
+                                  selectedColor: const Color(0xFF6D4C41),
+                                  activeColor: pinColor,
+                                ),
+                                onChanged: (value) {
+                                  setState(() => enteredPin = value);
+                                },
+                              ),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text(
+                                "Annuler",
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+
+                            /// ✅ BOUTON VERIFIER
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: enteredPin.length == 6
+                                    ? Colors.green
+                                    : const Color(0xFF6D4C41),
+                              ),
+                              onPressed: enteredPin.length == 6
+                                  ? () async {
+                                      final String pin = await getUserPin();
+                                      final bool isValidPin = BCrypt.checkpw(
+                                        enteredPin,
+                                        pin, // pinHash stocké depuis Firestore
+                                      );
+
+                                      if (isValidPin) {
+                                        Navigator.pop(context);
+
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.check_circle,
+                                                  color: Colors.green,
+                                                ),
+                                                SizedBox(width: 8),
+                                                Text("Code PIN correct"),
+                                              ],
+                                            ),
+                                            duration: Duration(seconds: 1),
+                                          ),
+                                        );
+
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => QRScannerPage(
+                                              onScan: (data) {
+                                                setState(
+                                                  () => recipientData = data,
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.error,
+                                                  color: Colors.red,
+                                                ),
+                                                SizedBox(width: 8),
+                                                Text("Code PIN incorrect"),
+                                              ],
+                                            ),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+
+                                        setState(() => enteredPin = "");
+                                        Navigator.pop(context);
+                                      }
+                                    }
+                                  : null,
+                              child: const Text(
+                                "Vérifier",
+                                style: TextStyle(color: Colors.black),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                );
+              },
               child: CircleAvatar(
                 radius: 65,
                 backgroundColor: const Color(0xFFFFEFD5),
@@ -339,18 +500,21 @@ class _SendMoneyState extends State<SendMoney> {
                                     .get();
 
                                 if ((await requestRef).docs.isNotEmpty) {
-
                                   final me = _auth.currentUser!;
-                                  final senderDocRef = _firestore.collection('users').doc(me.uid);
-                                  final senderSnapshot = await senderDocRef.get();
-                                  final senderidunique = senderSnapshot['idUnique'] ?? 0;
+                                  final senderDocRef = _firestore
+                                      .collection('users')
+                                      .doc(me.uid);
+                                  final senderSnapshot = await senderDocRef
+                                      .get();
+                                  final senderidunique =
+                                      senderSnapshot['idUnique'] ?? 0;
                                   final friendDocId =
                                       (await requestRef).docs.first.id;
                                   await FirebaseFirestore.instance
                                       .collection('users')
                                       .doc(friendDocId)
                                       .collection('friendrequest')
-                                      .add({'request':senderidunique });
+                                      .add({'request': senderidunique});
                                 }
 
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -646,18 +810,23 @@ class _SendMoneyState extends State<SendMoney> {
                                               .get();
 
                                       if (friendQuery.docs.isNotEmpty) {
-
                                         final sender = _auth.currentUser!;
-                                        final senderDocRef = _firestore.collection('users').doc(sender.uid);
-                                        final senderSnapshot = await senderDocRef.get();
-                                        final senderuniquedmanid = senderSnapshot['idUnique'] ?? 0;
+                                        final senderDocRef = _firestore
+                                            .collection('users')
+                                            .doc(sender.uid);
+                                        final senderSnapshot =
+                                            await senderDocRef.get();
+                                        final senderuniquedmanid =
+                                            senderSnapshot['idUnique'] ?? 0;
                                         final friendDocId =
                                             friendQuery.docs.first.id;
                                         await FirebaseFirestore.instance
                                             .collection('users')
                                             .doc(friendDocId)
                                             .collection('friendrequest')
-                                            .add({'request': senderuniquedmanid});
+                                            .add({
+                                              'request': senderuniquedmanid,
+                                            });
                                       }
 
                                       ScaffoldMessenger.of(
@@ -771,7 +940,181 @@ class _SendMoneyState extends State<SendMoney> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: _sendToSearchedUser,
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) {
+                                  return StatefulBuilder(
+                                    builder: (context, setState) {
+                                      Color pinColor;
+                                      if (enteredPin.length < 4) {
+                                        pinColor = Colors.red;
+                                      } else if (enteredPin.length < 6) {
+                                        pinColor = Colors.orange;
+                                      } else {
+                                        pinColor = Colors.green;
+                                      }
+
+                                      return AlertDialog(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        content: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              "Entrez votre code PIN de sécurité",
+                                              style: GoogleFonts.poppins(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 22,
+                                                color: const Color(0xFF4E342E),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 18),
+
+                                            /// 🔐 PIN CODE FIELD
+                                            PinCodeTextField(
+                                              appContext: context,
+                                              length: 6,
+                                              obscureText: true,
+                                              obscuringCharacter: "●",
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              animationType: AnimationType.fade,
+                                              enableActiveFill: true,
+                                              pinTheme: PinTheme(
+                                                shape: PinCodeFieldShape.box,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                fieldHeight: 45,
+                                                fieldWidth: 43,
+                                                inactiveFillColor: Colors.white,
+                                                selectedFillColor: Colors.white,
+                                                activeFillColor: Colors.white,
+                                                inactiveColor: pinColor,
+                                                selectedColor: const Color(
+                                                  0xFF6D4C41,
+                                                ),
+                                                activeColor: pinColor,
+                                              ),
+                                              onChanged: (value) {
+                                                setState(
+                                                  () => enteredPin = value,
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                            child: const Text(
+                                              "Annuler",
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                          ),
+
+                                          /// ✅ BOUTON VERIFIER
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  enteredPin.length == 6
+                                                  ? Colors.green
+                                                  : const Color(0xFF6D4C41),
+                                            ),
+                                            onPressed: enteredPin.length == 6
+                                                ? () async {
+                                                    final String pin =
+                                                        await getUserPin();
+                                                    final bool
+                                                    isValidPin = BCrypt.checkpw(
+                                                      enteredPin,
+                                                      pin, // pinHash stocké depuis Firestore
+                                                    );
+
+                                                    if (isValidPin) {
+                                                      Navigator.pop(context);
+
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons
+                                                                    .check_circle,
+                                                                color: Colors
+                                                                    .green,
+                                                              ),
+                                                              SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Text(
+                                                                "Code PIN correct",
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          duration: Duration(
+                                                            seconds: 1,
+                                                          ),
+                                                        ),
+                                                      );
+                                                      // Procéder à l'envoi d'argent
+                                                      _sendToSearchedUser();
+                                                    } else {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons.error,
+                                                                color:
+                                                                    Colors.red,
+                                                              ),
+                                                              SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Text(
+                                                                "Code PIN incorrect",
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          duration: Duration(
+                                                            seconds: 2,
+                                                          ),
+                                                        ),
+                                                      );
+
+                                                      setState(
+                                                        () => enteredPin = "",
+                                                      );
+                                                      Navigator.pop(context);
+                                                    }
+                                                  }
+                                                : null,
+                                            child: const Text(
+                                              "Vérifier",
+                                              style: TextStyle(
+                                                color: Colors.black,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF3E2723),
                               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -881,7 +1224,6 @@ class _QRScannerPageState extends State<QRScannerPage> {
   }
 
   // --------------------------------------------------
-  @override
   void _onQRViewCreated(QRViewController controller) {
     this.controller = controller;
 
@@ -902,6 +1244,7 @@ class _QRScannerPageState extends State<QRScannerPage> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: const Color(0xFF3E2723),
         title: const Text(
           "Scanner le QR code",

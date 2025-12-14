@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -67,9 +69,9 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       setState(() => _isSaving = false);
     }
@@ -97,10 +99,7 @@ class _ProfilePageState extends State<ProfilePage> {
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           'Mon profil',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -190,11 +189,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   icon: _isSaving
                       ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : const Icon(Icons.save, color: Colors.white),
                   label: Text(
                     _isSaving ? "Enregistrement..." : "Enregistrer",
@@ -239,9 +240,7 @@ class _ProfilePageState extends State<ProfilePage> {
           borderSide: const BorderSide(color: Color(0xFFB8860B), width: 1.2),
           borderRadius: BorderRadius.circular(12),
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
         fillColor: Colors.white,
       ),

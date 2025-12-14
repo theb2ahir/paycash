@@ -1,11 +1,10 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
-
-
-
 
 class Historique extends StatefulWidget {
   const Historique({super.key});
@@ -23,7 +22,6 @@ class _HistoriqueState extends State<Historique> {
     super.initState();
     fetchUserUniqueId();
     timeago.setLocaleMessages('fr', timeago.FrMessages());
-
   }
 
   String extractInternalId(String fullId) {
@@ -63,9 +61,7 @@ class _HistoriqueState extends State<Historique> {
   @override
   Widget build(BuildContext context) {
     if (userUniqueId == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -94,7 +90,7 @@ class _HistoriqueState extends State<Historique> {
             if (!snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
-        
+
             final allTx = snapshot.data!.docs;
             final userTx = allTx.where((doc) {
               final t = doc.data() as Map<String, dynamic>;
@@ -102,14 +98,17 @@ class _HistoriqueState extends State<Historique> {
               final to = extractInternalId(t['to'] ?? '');
               return from == userUniqueId || to == userUniqueId;
             }).toList();
-        
+
             if (userTx.isEmpty) {
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.hourglass_empty_rounded,
-                        size: 80, color: Colors.brown),
+                    Icon(
+                      Icons.hourglass_empty_rounded,
+                      size: 80,
+                      color: Colors.brown,
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       "Aucune transaction pour le moment",
@@ -122,7 +121,7 @@ class _HistoriqueState extends State<Historique> {
                 ),
               );
             }
-        
+
             return ListView.builder(
               padding: const EdgeInsets.all(12),
               itemCount: userTx.length,
@@ -138,7 +137,7 @@ class _HistoriqueState extends State<Historique> {
                 final createdAt = t['createdAt'] != null
                     ? (t['createdAt'] as Timestamp).toDate()
                     : DateTime.now();
-        
+
                 return FutureBuilder<List<String>>(
                   future: Future.wait([
                     getUserNameById(fromFull),
@@ -153,29 +152,24 @@ class _HistoriqueState extends State<Historique> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
-                            BoxShadow(
-                              color: Colors.brown,
-                              blurRadius: 8,
-                            ),
+                            BoxShadow(color: Colors.brown, blurRadius: 8),
                           ],
                         ),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(strokeWidth: 2),
-                          ],
+                          children: [CircularProgressIndicator(strokeWidth: 2)],
                         ),
                       );
                     }
-        
+
                     final fromName = snapshot.data![0];
                     final toName = snapshot.data![1];
-        
+
                     String title = "";
                     String subtitle = "";
                     IconData icon;
                     Color color;
-        
+
                     if (type == 'retrait' ||
                         (fromId == userUniqueId && toFull.isEmpty)) {
                       title = "Retrait";
@@ -210,7 +204,7 @@ class _HistoriqueState extends State<Historique> {
                       icon = Icons.swap_horiz_rounded;
                       color = Colors.grey;
                     }
-        
+
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 250),
                       curve: Curves.easeInOut,

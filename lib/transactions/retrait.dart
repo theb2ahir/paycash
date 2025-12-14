@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -86,7 +88,8 @@ class _WithdrawPageState extends State<WithdrawPage> {
           final userRef = _firestore.collection('users').doc(user.uid);
           await _firestore.runTransaction((transaction) async {
             final snapshot = await transaction.get(userRef);
-            final currentBalance = (snapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+            final currentBalance =
+                (snapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
 
             transaction.update(userRef, {'balance': currentBalance - amount});
 
@@ -125,7 +128,11 @@ class _WithdrawPageState extends State<WithdrawPage> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Échec du retrait : ${data['message'] ?? 'Erreur'}")),
+            SnackBar(
+              content: Text(
+                "Échec du retrait : ${data['message'] ?? 'Erreur'}",
+              ),
+            ),
           );
         }
       } else {
@@ -134,9 +141,9 @@ class _WithdrawPageState extends State<WithdrawPage> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur : $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Erreur : $e")));
     } finally {
       setState(() => _isProcessing = false);
     }
@@ -269,9 +276,9 @@ class _WithdrawPageState extends State<WithdrawPage> {
       child: _isProcessing
           ? const CircularProgressIndicator(color: Colors.white)
           : Text(
-        label,
-        style: const TextStyle(fontSize: 20, color: Colors.white),
-      ),
+              label,
+              style: const TextStyle(fontSize: 20, color: Colors.white),
+            ),
     ),
   );
 }

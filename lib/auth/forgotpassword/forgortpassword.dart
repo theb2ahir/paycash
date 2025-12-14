@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -140,13 +142,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 child: loading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text(
-                  "Envoyer",
-                  style: GoogleFonts.roboto(
-                    fontSize: 20,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                        "Envoyer",
+                        style: GoogleFonts.roboto(
+                          fontSize: 20,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ),
           ],

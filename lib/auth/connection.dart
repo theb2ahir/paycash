@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -5,10 +7,11 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:paycash/auth/forgotpassword/forgortpassword.dart';
+import 'package:paycash/pages/verifypin.dart';
 
 import '../pages/acceuil.dart';
 import 'inscription.dart';
-import 'othermethides/phoneconnexion.dart';
+import 'othermethodes/phoneconnexion.dart';
 
 class Connection extends StatefulWidget {
   const Connection({super.key});
@@ -29,7 +32,6 @@ class _ConnectionState extends State<Connection> {
 
     final uid = user.uid;
     final email = user.email;
-    final phone = user.phoneNumber;
     final displayName = user.displayName;
 
     final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
@@ -37,24 +39,38 @@ class _ConnectionState extends State<Connection> {
     final doc = await userRef.get();
 
     if (!doc.exists) {
-      // Création
-      String idUnique = '${displayName}_pay_${phone}_cash_${doc.id}_id';
-
-      await userRef.set({
-        "email": email,
-        "name": displayName ?? "",
-        'phone': phone ?? "",
-        'idUnique': idUnique,
-        'status': "active",
-        'balance': 0,
-        "createdAt": FieldValue.serverTimestamp(),
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Aucun profil trouvé. Veuillez vous inscrire.",
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
     } else {
       // Mise à jour (sans écraser les données existantes)
       await userRef.update({
         "email": email,
         "name": displayName ?? doc.data()!["name"],
       });
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VerifyPinPage(
+            onSuccess: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => Acceuil()),
+              );
+            },
+          ),
+        ),
+      );
     }
   }
 
@@ -81,19 +97,6 @@ class _ConnectionState extends State<Connection> {
 
       // Met à jour Firestore
       await _upsertUserDocIfNeeded(userCred.user);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Connexion Google réussie !"),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const Acceuil()),
-        (route) => false,
-      );
     } catch (e) {
       showSnack("Erreur Google Sign-In: $e");
     } finally {
@@ -123,13 +126,6 @@ class _ConnectionState extends State<Connection> {
 
       if (!mounted) return;
       setState(() => isLoading = false);
-
-      showSnack("Connexion réussie", success: true);
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const Acceuil()),
-        (route) => false,
-      );
     } on FirebaseAuthException catch (e) {
       setState(() => isLoading = false);
 

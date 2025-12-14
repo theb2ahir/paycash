@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -91,7 +93,9 @@ class _RechargePageState extends State<RechargePage> {
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Impossible de récupérer l'URL de paiement")),
+              const SnackBar(
+                content: Text("Impossible de récupérer l'URL de paiement"),
+              ),
             );
           }
         } else {
@@ -105,9 +109,9 @@ class _RechargePageState extends State<RechargePage> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur : $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Erreur : $e")));
     } finally {
       setState(() => _isProcessing = false);
     }
@@ -228,9 +232,9 @@ class _RechargePageState extends State<RechargePage> {
       child: _isProcessing
           ? const CircularProgressIndicator(color: Color(0xFF8B5E3C))
           : Text(
-        label,
-        style: const TextStyle(fontSize: 20, color: Colors.white),
-      ),
+              label,
+              style: const TextStyle(fontSize: 20, color: Colors.white),
+            ),
     ),
   );
 }

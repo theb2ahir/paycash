@@ -1,15 +1,17 @@
-import 'dart:ui';
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
+import 'package:bcrypt/bcrypt.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:paycash/pages/setorupdatepin.dart';
 import 'package:paycash/transactions/receivemoney.dart';
 import 'package:paycash/transactions/sendmoney.dart';
+import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
-import '../notification_service.dart';
 import '../transactions/recharge.dart';
 
 class Homepage extends StatefulWidget {
@@ -21,8 +23,10 @@ class Homepage extends StatefulWidget {
 
 class _HomepageState extends State<Homepage> {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final TextEditingController pinnewentryCtrl = TextEditingController();
   String? userUniqueId;
   String userName = "";
+  String enteredPin = "";
 
   @override
   void initState() {
@@ -199,6 +203,8 @@ class _HomepageState extends State<Homepage> {
                     final name = userdata['name'];
                     final status = userdata['status'];
                     final fullIdUnique = userdata['idUnique'] ?? "";
+                    final pinset = userdata['pinSet'];
+                    final pin = userdata['pin'] ?? "";
 
                     return Container(
                       decoration: BoxDecoration(
@@ -249,16 +255,230 @@ class _HomepageState extends State<Homepage> {
                                 ),
                               ),
                               IconButton(
-                                onPressed: () {
-                                  Clipboard.setData(
-                                    ClipboardData(text: fullIdUnique),
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text("ID copié !"),
-                                      duration: Duration(seconds: 1),
-                                    ),
-                                  );
+                                onPressed: () async {
+                                  if (pinset == true) {
+                                    showDialog(
+                                      context: context,
+                                      barrierDismissible: false,
+                                      builder: (context) {
+                                        return StatefulBuilder(
+                                          builder: (context, setState) {
+                                            Color pinColor;
+                                            if (enteredPin.length < 4) {
+                                              pinColor = Colors.red;
+                                            } else if (enteredPin.length < 6) {
+                                              pinColor = Colors.orange;
+                                            } else {
+                                              pinColor = Colors.green;
+                                            }
+
+                                            return AlertDialog(
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                              content: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    "Entrez votre code PIN de sécurité",
+                                                    style: GoogleFonts.poppins(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 22,
+                                                      color: const Color(
+                                                        0xFF4E342E,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 18),
+
+                                                  /// 🔐 PIN CODE FIELD
+                                                  PinCodeTextField(
+                                                    appContext: context,
+                                                    length: 6,
+                                                    obscureText: true,
+                                                    obscuringCharacter: "●",
+                                                    keyboardType:
+                                                        TextInputType.number,
+                                                    animationType:
+                                                        AnimationType.fade,
+                                                    enableActiveFill: true,
+                                                    pinTheme: PinTheme(
+                                                      shape:
+                                                          PinCodeFieldShape.box,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                      fieldHeight: 45,
+                                                      fieldWidth: 43,
+                                                      inactiveFillColor:
+                                                          Colors.white,
+                                                      selectedFillColor:
+                                                          Colors.white,
+                                                      activeFillColor:
+                                                          Colors.white,
+                                                      inactiveColor: pinColor,
+                                                      selectedColor:
+                                                          const Color(
+                                                            0xFF6D4C41,
+                                                          ),
+                                                      activeColor: pinColor,
+                                                    ),
+                                                    onChanged: (value) {
+                                                      setState(
+                                                        () =>
+                                                            enteredPin = value,
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context),
+                                                  child: const Text(
+                                                    "Annuler",
+                                                    style: TextStyle(
+                                                      color: Colors.red,
+                                                    ),
+                                                  ),
+                                                ),
+
+                                                /// ✅ BOUTON VERIFIER
+                                                ElevatedButton(
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        backgroundColor:
+                                                            enteredPin.length ==
+                                                                6
+                                                            ? Colors.green
+                                                            : const Color(
+                                                                0xFF6D4C41,
+                                                              ),
+                                                      ),
+                                                  onPressed:
+                                                      enteredPin.length == 6
+                                                      ? () {
+                                                          final bool
+                                                          isValidPin =
+                                                              BCrypt.checkpw(
+                                                                enteredPin,
+                                                                pin, // pinHash stocké depuis Firestore
+                                                              );
+
+                                                          if (isValidPin) {
+                                                            Navigator.pop(
+                                                              context,
+                                                            );
+
+                                                            ScaffoldMessenger.of(
+                                                              context,
+                                                            ).showSnackBar(
+                                                              const SnackBar(
+                                                                content: Row(
+                                                                  children: [
+                                                                    Icon(
+                                                                      Icons
+                                                                          .check_circle,
+                                                                      color: Colors
+                                                                          .green,
+                                                                    ),
+                                                                    SizedBox(
+                                                                      width: 8,
+                                                                    ),
+                                                                    Text(
+                                                                      "Code PIN correct",
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                                duration:
+                                                                    Duration(
+                                                                      seconds:
+                                                                          1,
+                                                                    ),
+                                                              ),
+                                                            );
+
+                                                            Clipboard.setData(
+                                                              ClipboardData(
+                                                                text:
+                                                                    fullIdUnique,
+                                                              ),
+                                                            );
+                                                          } else {
+                                                            ScaffoldMessenger.of(
+                                                              context,
+                                                            ).showSnackBar(
+                                                              const SnackBar(
+                                                                content: Row(
+                                                                  children: [
+                                                                    Icon(
+                                                                      Icons
+                                                                          .error,
+                                                                      color: Colors
+                                                                          .red,
+                                                                    ),
+                                                                    SizedBox(
+                                                                      width: 8,
+                                                                    ),
+                                                                    Text(
+                                                                      "Code PIN incorrect",
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                                duration:
+                                                                    Duration(
+                                                                      seconds:
+                                                                          2,
+                                                                    ),
+                                                              ),
+                                                            );
+
+                                                            setState(
+                                                              () => enteredPin =
+                                                                  "",
+                                                            );
+                                                          }
+                                                        }
+                                                      : null,
+                                                  child: const Text(
+                                                    "Vérifier",
+                                                    style: TextStyle(
+                                                      color: Colors.black,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+                                      },
+                                    );
+                                  } else if (pinset == false) {
+                                    final snack = ScaffoldMessenger.of(context)
+                                        .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              "Veuillez définir un code Pin.",
+                                            ),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+
+                                    snack.closed.then((_) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => SetOrUpdatePinPage(
+                                            pinExists: pinset,
+                                          ),
+                                        ),
+                                      );
+                                    });
+                                  }
                                 },
                                 icon: const Icon(
                                   Icons.copy,

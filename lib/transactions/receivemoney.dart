@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -94,7 +96,7 @@ class _ReceiveMoneyState extends State<ReceiveMoney> {
                       data['notified_scan_sent'] == false)) {
                 await NotificationService.showNotification(
                   title: "📷 QR Code scanné",
-                  body: "${senderName} a scanné votre QR code.",
+                  body: "$senderName a scanné votre QR code.",
                 );
 
                 // Marquer que la notif de scan a été envoyée
@@ -110,7 +112,7 @@ class _ReceiveMoneyState extends State<ReceiveMoney> {
                 await NotificationService.showNotification(
                   title: "💰 Paiement reçu",
                   body:
-                      "${senderName} a envoyé ${data['montant']?.toStringAsFixed(0) ?? ''} FCFA",
+                      "$senderName a envoyé ${data['montant']?.toStringAsFixed(0) ?? ''} FCFA",
                 );
 
                 // Marquer que la notif de paiement a été envoyée

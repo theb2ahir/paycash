@@ -1,8 +1,9 @@
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 
 class LinkPhonePage extends StatefulWidget {
   const LinkPhonePage({super.key});
@@ -33,9 +34,9 @@ class _LinkPhonePageState extends State<LinkPhonePage> {
   Future<void> sendOTP() async {
     final rawPhone = phoneCtrl.text.trim();
     if (rawPhone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Entrez votre numéro")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Entrez votre numéro")));
       return;
     }
 
@@ -47,40 +48,39 @@ class _LinkPhonePageState extends State<LinkPhonePage> {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: phone,
         verificationCompleted: (credential) async {
-          await FirebaseAuth.instance.currentUser!
-              .linkWithCredential(credential);
+          await FirebaseAuth.instance.currentUser!.linkWithCredential(
+            credential,
+          );
 
           await FirebaseFirestore.instance
               .collection("users")
               .doc(FirebaseAuth.instance.currentUser!.uid)
               .update({"phone": phone});
 
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Numéro lié avec succès !"),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Numéro lié avec succès !")),
+          );
         },
         verificationFailed: (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Erreur : ${e.message}")),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("Erreur : ${e.message}")));
         },
         codeSent: (verificationId, token) {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => LinkPhoneOTP(
-                phone: phone,
-                verificationId: verificationId,
-              ),
+              builder: (_) =>
+                  LinkPhoneOTP(phone: phone, verificationId: verificationId),
             ),
           );
         },
         codeAutoRetrievalTimeout: (id) {},
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Erreur: $e")));
     } finally {
       setState(() => loading = false);
     }
@@ -96,10 +96,7 @@ class _LinkPhonePageState extends State<LinkPhonePage> {
         iconTheme: IconThemeData(color: brown),
         title: Text(
           "Lier mon numéro",
-          style: GoogleFonts.poppins(
-            color: brown,
-            fontWeight: FontWeight.bold,
-          ),
+          style: GoogleFonts.poppins(color: brown, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
@@ -147,9 +144,9 @@ class _LinkPhonePageState extends State<LinkPhonePage> {
                 child: loading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text(
-                  "Recevoir OTP",
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
+                        "Recevoir OTP",
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
               ),
             ),
           ],
@@ -158,7 +155,6 @@ class _LinkPhonePageState extends State<LinkPhonePage> {
     );
   }
 }
-
 
 class LinkPhoneOTP extends StatefulWidget {
   final String phone;
@@ -193,23 +189,23 @@ class _LinkPhoneOTPState extends State<LinkPhoneOTP> {
         smsCode: code,
       );
 
-      await FirebaseAuth.instance.currentUser!
-          .linkWithCredential(credential);
+      await FirebaseAuth.instance.currentUser!.linkWithCredential(credential);
 
       await FirebaseFirestore.instance
           .collection("users")
           .doc(FirebaseAuth.instance.currentUser!.uid)
           .update({"phone": widget.phone});
 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text("Numéro lié avec succès !"),
-      ));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Numéro lié avec succès !")));
 
       Navigator.pop(context);
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Erreur OTP : $e")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Erreur OTP : $e")));
     } finally {
       setState(() => loading = false);
     }
@@ -225,10 +221,7 @@ class _LinkPhoneOTPState extends State<LinkPhoneOTP> {
         iconTheme: IconThemeData(color: brown),
         title: Text(
           "Code OTP",
-          style: GoogleFonts.poppins(
-            color: brown,
-            fontWeight: FontWeight.bold,
-          ),
+          style: GoogleFonts.poppins(color: brown, fontWeight: FontWeight.bold),
         ),
       ),
 
@@ -276,9 +269,9 @@ class _LinkPhoneOTPState extends State<LinkPhoneOTP> {
                 child: loading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text(
-                  "Valider",
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
+                        "Valider",
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
               ),
             ),
           ],
@@ -287,5 +280,3 @@ class _LinkPhoneOTPState extends State<LinkPhoneOTP> {
     );
   }
 }
-
-
