@@ -1,21 +1,21 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+// ignore_for_file: use_build_context_synchronously
 
-import 'paymentsucces.dart';
+import 'dart:typed_data';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:screenshot/screenshot.dart';
 
 class FacturePage extends StatefulWidget {
-  final String url;
   final String token;
   final double amount;
   final String operator;
 
   const FacturePage({
     super.key,
-    required this.url,
     required this.token,
     required this.amount,
     required this.operator,
@@ -26,139 +26,325 @@ class FacturePage extends StatefulWidget {
 }
 
 class _FacturePageState extends State<FacturePage> {
-  bool _loading = true;
-  final backendUrl = "https://paycash-d2q6.onrender.com";
+  final uid = FirebaseAuth.instance.currentUser!.uid;
+  final ScreenshotController _screenshotController = ScreenshotController();
 
-  late final WebViewController _controller;
+  String username = "";
+  String userphone = "";
+  String useremail = "";
+  String userIdUnique = "";
+  Uint8List? _capturedImage;
 
   @override
   void initState() {
     super.initState();
-
-    if (!kIsWeb) {
-      // Mobile (Android/iOS) → initialisation du controller
-      _controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setNavigationDelegate(
-          NavigationDelegate(
-            onPageFinished: (_) => setState(() => _loading = false),
-            onNavigationRequest: (request) async {
-              if (request.url.contains("/paydunya_callback")) {
-                await _verifyPayment();
-                return NavigationDecision.prevent;
-              }
-              return NavigationDecision.navigate;
-            },
-          ),
-        )
-        ..loadRequest(Uri.parse(widget.url));
-    }
-
-    if (kIsWeb) {
-      // Web → ouverture du navigateur externe
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _openPaymentWeb(widget.url);
-      });
-    }
+    _getUserInfo();
   }
 
-  // Flutter Web → ouvre le navigateur externe
-  Future<void> _openPaymentWeb(String url) async {
-    final uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Impossible d'ouvrir le paiement")),
-        );
-      }
-    }
-  }
+  Future<Map<String, String>> _getUserInfo() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
 
-  // Vérification du paiement via backend
-  Future<void> _verifyPayment() async {
-    try {
-      final response = await http.get(
-        Uri.parse("$backendUrl/invoice_status?token=${widget.token}"),
-      );
+    setState(() {
+      username = doc['name'] ?? "";
+      userphone = doc['phone'] ?? "";
+      useremail = doc['email'] ?? "";
+      userIdUnique = doc['idUnique'] ?? "";
+    });
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final status = data['data']['status'] ?? 'pending';
-
-        if (status.toString().toLowerCase() == "completed") {
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PaymentSuccessPage(
-                title: "Recharge réussie",
-                amount: widget.amount,
-                operator: widget.operator,
-                reference: widget.token, paymentUrl: '',
-              ),
-            ),
-          );
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Paiement en attente ou échoué")),
-            );
-          }
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Erreur serveur: ${response.body}")),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur: $e")),
-        );
-      }
-    }
+    return {
+      'name': username,
+      'phone': userphone,
+      'email': useremail,
+      'idUnique': userIdUnique,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb) {
-      // Flutter Web → simple page avec bouton vérifier paiement
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text("Paiement"),
-          backgroundColor: const Color(0xFF8B5E3C),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F1EE), // blanc cassé
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.brown[700],
+        foregroundColor: Colors.white,
+        centerTitle: true,
+        title: Text(
+          "Facture",
+          style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.bold),
         ),
-        body: Center(
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text("Redirection vers la page de paiement..."),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => _verifyPayment(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8B5E3C),
+              Screenshot(
+                controller: _screenshotController,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(25),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 15,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      /// TITRE
+                      Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.receipt_long,
+                              size: 50,
+                              color: Colors.brown[700],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              "FACTURE DE PAIEMENT PAYCASH",
+                              style: GoogleFonts.roboto(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.brown[800],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 30),
+                      _infoRow("Nom d'utilisateur", username),
+
+                      _infoRow("Numéro de téléphone", userphone),
+
+                      _infoRow("Email", useremail),
+
+                      // afficher 10 premiers caractères de l'ID unique dans _infoRow
+                      _infoRow(
+                        "ID utilisateur",
+                        userIdUnique.length > 10
+                            ? "${userIdUnique.substring(0, 19)}..."
+                            : userIdUnique,
+                      ),
+
+                      /// LIGNE INFO
+                      _infoRow("Opérateur", widget.operator),
+
+                      const Divider(height: 35),
+
+                      /// TOKEN
+                      Text(
+                        "Token de transaction",
+                        style: GoogleFonts.roboto(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black54,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: Colors.brown[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: SelectableText(
+                          widget.token,
+                          style: GoogleFonts.robotoMono(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: const Color.fromARGB(255, 10, 60, 36),
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 25),
+                      Text(
+                        "Statut",
+                        style: GoogleFonts.roboto(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: Colors.brown[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: SelectableText(
+                          "Transaction réussie",
+                          style: GoogleFonts.robotoMono(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: const Color.fromARGB(255, 10, 60, 36),
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 25),
+
+                      /// MONTANT
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Montant",
+                            style: GoogleFonts.roboto(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            "${widget.amount.toStringAsFixed(0)} FCFA",
+                            style: GoogleFonts.roboto(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.brown[800],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 35),
+                    ],
+                  ),
                 ),
-                child: const Text("Vérifier le paiement"),
+              ),
+
+              const SizedBox(height: 30),
+
+              /// BOUTON
+              Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      SizedBox(
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.brown[700],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          child: Text(
+                            "Terminer",
+                            style: GoogleFonts.roboto(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.brown[700],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final image = await _screenshotController.capture();
+
+                            if (image != null) {
+                              setState(() {
+                                _capturedImage = image;
+                              });
+                              //afficher l'image avec image.memory
+
+                              if (_capturedImage != null) {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: Column(
+                                      children: [
+                                        Text(
+                                          "Facture",
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF8B5E3C),
+                                          ),
+                                        ),
+                                        Text(
+                                          "Faite une capture d'écran",
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 16,
+                                            color: Colors.black,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    content: Image.memory(_capturedImage!),
+                                  ),
+                                );
+                              }
+                              // Ici on affiche juste un SnackBar
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    "Capture d'écran sauvegardée !",
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          child: Text(
+                            "sauvegarder",
+                            style: GoogleFonts.roboto(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
         ),
-      );
-    }
-
-    // Mobile (Android/iOS) → WebView intégrée
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Paiement"),
-        backgroundColor: const Color(0xFF8B5E3C),
       ),
-      body: Stack(
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          WebViewWidget(controller: _controller),
-          if (_loading) const Center(child: CircularProgressIndicator()),
+          Text(label, style: GoogleFonts.roboto(color: Colors.black54)),
+          Text(value, style: GoogleFonts.roboto(fontWeight: FontWeight.bold)),
         ],
       ),
     );

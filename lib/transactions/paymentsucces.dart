@@ -7,7 +7,6 @@ class PaymentSuccessPage extends StatelessWidget {
   final double amount;
   final String operator;
   final String reference;
-  final String paymentUrl;
 
   const PaymentSuccessPage({
     super.key,
@@ -15,7 +14,6 @@ class PaymentSuccessPage extends StatelessWidget {
     required this.amount,
     required this.operator,
     required this.reference,
-    required this.paymentUrl,
   });
 
   @override
@@ -41,13 +39,18 @@ class PaymentSuccessPage extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.check_circle_outline,
-                  color: Colors.green, size: 100),
+              const Icon(
+                Icons.check_circle_outline,
+                color: Colors.green,
+                size: 100,
+              ),
               const SizedBox(height: 20),
               Text(
                 title,
                 style: const TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold),
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
@@ -68,7 +71,6 @@ class PaymentSuccessPage extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => FacturePage(
-                        url: paymentUrl,
                         token: reference,
                         amount: amount,
                         operator: operator,
@@ -78,10 +80,13 @@ class PaymentSuccessPage extends StatelessWidget {
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF8B5E3C),
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 15,
+                  ),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: const Text(
                   "Voir la facture",
@@ -94,10 +99,13 @@ class PaymentSuccessPage extends StatelessWidget {
                     Navigator.popUntil(context, (route) => route.isFirst),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.grey[300],
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 15,
+                  ),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: const Text(
                   "Retour à l'accueil",

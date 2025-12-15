@@ -170,8 +170,7 @@ class _HistoriqueState extends State<Historique> {
                     IconData icon;
                     Color color;
 
-                    if (type == 'retrait' ||
-                        (fromId == userUniqueId && toFull.isEmpty)) {
+                    if (type == 'retrait') {
                       title = "Retrait";
                       subtitle = "Vous avez retiré $amount FCFA";
                       icon = Icons.arrow_downward_rounded;

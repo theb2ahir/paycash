@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:paycash/transactions/paymentsucces.dart';
 import 'dart:convert';
 
@@ -22,11 +23,12 @@ class _RechargePageState extends State<RechargePage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
 
   bool _isProcessing = false;
   double _currentBalance = 0;
   String _selectedOperator = 'YAS';
-  final String backendUrl = "https://paycash-d2q6.onrender.com";
+  final String backendUrl = "http://192.168.1.64:3000";
 
   @override
   void initState() {
@@ -48,6 +50,7 @@ class _RechargePageState extends State<RechargePage> {
 
   Future<void> _recharge() async {
     final amount = double.tryParse(_amountController.text);
+    final phonenumber = _phoneController.text.trim();
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Veuillez entrer un montant valide")),
@@ -65,53 +68,67 @@ class _RechargePageState extends State<RechargePage> {
         Uri.parse("$backendUrl/recharge"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'amount': amount,
           'userId': user.uid,
+          'amount': amount,
+          'number': phonenumber,
           'operator': _selectedOperator,
         }),
       );
+      final data = jsonDecode(response.body);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (response.statusCode == 200 && data['status'] == 'success') {
         print("Réponse backend: $data"); //
-        if (data['status'] == 'success') {
-          final token = data['token'];
-          final paymentUrl = data['payment_url'];
+        final token = data['token'];
 
-          if (paymentUrl != null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => PaymentSuccessPage(
-                  title: "Recharge réussie",
-                  amount: amount,
-                  operator: _selectedOperator,
-                  reference: token ?? "",
-                  paymentUrl: paymentUrl,
-                ),
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Impossible de récupérer l'URL de paiement"),
-              ),
-            );
-          }
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Erreur : ${data['message'] ?? 'Erreur'}")),
-          );
-        }
+        // 🔹 Mettre à jour Firestore
+        final userRef = _firestore.collection('users').doc(user.uid);
+        await _firestore.runTransaction((transaction) async {
+          final snapshot = await transaction.get(userRef);
+          final currentBalance =
+              (snapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+
+          transaction.update(userRef, {'balance': currentBalance + amount});
+
+          final transactionRef = _firestore.collection('transactions').doc();
+          transaction.set(transactionRef, {
+            'amount': amount,
+            'from': snapshot.data()?['idUnique'] ?? '',
+            'to': "",
+            'type': 'recharge',
+            'status': 'terminée',
+            'operator': _selectedOperator,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        });
+
+        // 🔹 Notification de succès
+        NotificationService.showNotification(
+          title: "Recharge réussie",
+          body: "Vous avez rechargé $amount FCFA",
+        );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PaymentSuccessPage(
+              title: "Recharge réussie",
+              amount: amount,
+              operator: _selectedOperator,
+              reference: token ?? "",
+            ),
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur serveur : ${response.body}")),
+          SnackBar(content: Text("Erreur serveur : ${data["message"]}")),
         );
+        print(data["message"]);
       }
     } catch (e) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Erreur : $e")));
+      print("Erreur de recharge : $e");
     } finally {
       setState(() => _isProcessing = false);
     }
@@ -146,6 +163,8 @@ class _RechargePageState extends State<RechargePage> {
             const SizedBox(height: 30),
             _amountField("Montant à recharger"),
             const SizedBox(height: 30),
+            _phoneNumberField("Votre numéro de téléphone(incluant indicatif)"),
+            const SizedBox(height: 30),
             _actionButton("Recharger", _recharge),
           ],
         ),
@@ -175,7 +194,7 @@ class _RechargePageState extends State<RechargePage> {
         ),
         const SizedBox(height: 10),
         Text(
-          "$_currentBalance FCFA",
+          "${NumberFormat('#,###', 'fr_FR').format(_currentBalance)} FCFA",
           style: GoogleFonts.poppins(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -213,6 +232,15 @@ class _RechargePageState extends State<RechargePage> {
   Widget _amountField(String label) => TextField(
     controller: _amountController,
     keyboardType: TextInputType.number,
+    decoration: InputDecoration(
+      labelText: label,
+      prefixIcon: const Icon(Icons.money, color: Color(0xFF8B5E3C)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+  );
+  Widget _phoneNumberField(String label) => TextField(
+    controller: _phoneController,
+    keyboardType: TextInputType.phone,
     decoration: InputDecoration(
       labelText: label,
       prefixIcon: const Icon(Icons.money, color: Color(0xFF8B5E3C)),

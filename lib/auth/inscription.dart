@@ -350,10 +350,8 @@ class _InscriptionState extends State<Inscription> {
     const brown = Color(0xFF5D4037);
 
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: IconThemeData(color: brown),
         centerTitle: true,

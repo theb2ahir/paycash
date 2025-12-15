@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
+import 'package:intl/intl.dart';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -27,6 +28,9 @@ class _HomepageState extends State<Homepage> {
   String? userUniqueId;
   String userName = "";
   String enteredPin = "";
+  bool _isBalanceVisible = false;
+  String pindeclaglob = "";
+  String idtotal = "";
 
   @override
   void initState() {
@@ -114,6 +118,8 @@ class _HomepageState extends State<Homepage> {
     setState(() {
       userUniqueId = internalId;
       userName = data['name'] ?? "Utilisateur";
+      pindeclaglob = data['pin'] ?? "";
+      idtotal = data['idUnique'] ?? "";
     });
   }
 
@@ -563,34 +569,218 @@ class _HomepageState extends State<Homepage> {
                             },
                             icon: Icon(Icons.refresh),
                           ),
-                          const SizedBox(width: 2),
                           FutureBuilder<Map<String, dynamic>>(
                             future: getUserData(),
                             builder: (context, snapshot) {
                               if (!snapshot.hasData) {
-                                return const Text("...");
+                                return const Text("..");
                               }
                               if (snapshot.connectionState ==
                                   ConnectionState.waiting) {
                                 return Text(
-                                  "........",
+                                  "...",
                                   style: GoogleFonts.roboto(
-                                    fontSize: 25,
+                                    fontSize: 23,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF4E342E),
+                                    color: const Color(0xFF4E342E),
                                   ),
                                 );
                               }
                               final data = snapshot.data!;
                               return Text(
-                                "${data['balance']} FCFA",
+                                _isBalanceVisible
+                                    ? "${NumberFormat('#,###', 'fr_FR').format(data['balance'])} F"
+                                    : "Solde",
                                 style: GoogleFonts.poppins(
-                                  fontSize: 26,
+                                  fontSize: 23,
                                   fontWeight: FontWeight.bold,
                                   color: const Color(0xFF4E342E),
                                 ),
                               );
                             },
+                          ),
+                          const SizedBox(width: 3),
+                          IconButton(
+                            onPressed: () async {
+                              String enteredPin =
+                                  ""; // assure-toi que c'est défini dans le parent
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) {
+                                  return StatefulBuilder(
+                                    builder: (context, setStateDialog) {
+                                      Color pinColor;
+                                      if (enteredPin.length < 4) {
+                                        pinColor = Colors.red;
+                                      } else if (enteredPin.length < 6) {
+                                        pinColor = Colors.orange;
+                                      } else {
+                                        pinColor = Colors.green;
+                                      }
+
+                                      return AlertDialog(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        content: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              "Entrez votre code PIN de sécurité",
+                                              style: GoogleFonts.poppins(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 22,
+                                                color: const Color(0xFF4E342E),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 18),
+                                            PinCodeTextField(
+                                              appContext: context,
+                                              length: 6,
+                                              obscureText: true,
+                                              obscuringCharacter: "●",
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              animationType: AnimationType.fade,
+                                              enableActiveFill: true,
+                                              pinTheme: PinTheme(
+                                                shape: PinCodeFieldShape.box,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                fieldHeight: 45,
+                                                fieldWidth: 43,
+                                                inactiveFillColor: Colors.white,
+                                                selectedFillColor: Colors.white,
+                                                activeFillColor: Colors.white,
+                                                inactiveColor: pinColor,
+                                                selectedColor: const Color(
+                                                  0xFF6D4C41,
+                                                ),
+                                                activeColor: pinColor,
+                                              ),
+                                              onChanged: (value) {
+                                                setStateDialog(
+                                                  () => enteredPin = value,
+                                                ); // pour l'affichage du champ
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                            child: const Text(
+                                              "Annuler",
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                          ),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  enteredPin.length == 6
+                                                  ? Colors.green
+                                                  : const Color(0xFF6D4C41),
+                                            ),
+                                            onPressed: enteredPin.length == 6
+                                                ? () {
+                                                    final bool isValidPin =
+                                                        BCrypt.checkpw(
+                                                          enteredPin,
+                                                          pindeclaglob,
+                                                        );
+
+                                                    if (isValidPin) {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons
+                                                                    .check_circle,
+                                                                color: Colors
+                                                                    .green,
+                                                              ),
+                                                              SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Text(
+                                                                "Code PIN correct",
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          duration: Duration(
+                                                            seconds: 1,
+                                                          ),
+                                                        ),
+                                                      );
+
+                                                      // ✅ IMPORTANT : utiliser setState du parent pour rebuild le solde et l'icône
+                                                      setState(() {
+                                                        _isBalanceVisible =
+                                                            !_isBalanceVisible;
+                                                      });
+
+                                                      Navigator.pop(context);
+                                                    } else {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons.error,
+                                                                color:
+                                                                    Colors.red,
+                                                              ),
+                                                              SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Text(
+                                                                "Code PIN incorrect",
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          duration: Duration(
+                                                            seconds: 2,
+                                                          ),
+                                                        ),
+                                                      );
+
+                                                      setStateDialog(
+                                                        () => enteredPin = "",
+                                                      );
+                                                    }
+                                                  }
+                                                : null,
+                                            child: const Text(
+                                              "Vérifier",
+                                              style: TextStyle(
+                                                color: Colors.black,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            },
+                            icon: Icon(
+                              _isBalanceVisible
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: const Color(0xFF4E342E),
+                            ),
                           ),
                         ],
                       ),

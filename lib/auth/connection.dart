@@ -9,7 +9,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:paycash/auth/forgotpassword/forgortpassword.dart';
 import 'package:paycash/pages/verifypin.dart';
 
-import '../pages/acceuil.dart';
 import 'inscription.dart';
 import 'othermethodes/phoneconnexion.dart';
 
@@ -58,18 +57,10 @@ class _ConnectionState extends State<Connection> {
         "name": displayName ?? doc.data()!["name"],
       });
 
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => VerifyPinPage(
-            onSuccess: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => Acceuil()),
-              );
-            },
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => VerifyPinPage()),
       );
     }
   }
@@ -175,11 +166,9 @@ class _ConnectionState extends State<Connection> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       // TOP BAR
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
       ),

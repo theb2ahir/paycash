@@ -1,14 +1,15 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:paycash/pages/acceuil.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:bcrypt/bcrypt.dart';
 
 class VerifyPinPage extends StatefulWidget {
-  final VoidCallback onSuccess;
-
-  const VerifyPinPage({super.key, required this.onSuccess});
+  const VerifyPinPage({super.key});
 
   @override
   State<VerifyPinPage> createState() => _VerifyPinPageState();
@@ -133,7 +134,10 @@ class _VerifyPinPageState extends State<VerifyPinPage> {
                         if (!mounted) return;
 
                         if (isValidPin) {
-                          widget.onSuccess();
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(builder: (_) => Acceuil()),
+                          );
                         } else {
                           attempts++;
                           setState(() {

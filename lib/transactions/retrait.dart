@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:paycash/transactions/paymentsucces.dart';
 import 'dart:convert';
 
@@ -26,7 +27,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
   double _currentBalance = 0;
   bool _isProcessing = false;
   String _selectedOperator = 'YAS';
-  final String backendUrl = "https://paycash-d2q6.onrender.com";
+  final String backendUrl = "http://192.168.1.64:3000";
 
   @override
   void initState() {
@@ -74,8 +75,9 @@ class _WithdrawPageState extends State<WithdrawPage> {
         Uri.parse("$backendUrl/withdraw"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
+          'userId': user.uid,
           'amount': amount,
-          'phone': phone,
+          'number': phone,
           'operator': _selectedOperator,
         }),
       );
@@ -84,6 +86,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
         final data = jsonDecode(response.body);
 
         if (data['status'] == 'success') {
+          final token = data['token'];
           // 🔹 Mettre à jour Firestore
           final userRef = _firestore.collection('users').doc(user.uid);
           await _firestore.runTransaction((transaction) async {
@@ -121,8 +124,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
                 title: "Retrait réussi",
                 amount: amount,
                 operator: _selectedOperator,
-                reference: data['data']['transaction_id'] ?? "",
-                paymentUrl: backendUrl, // Retrait simple, peut rester backend
+                reference: token,
               ),
             ),
           );
@@ -161,6 +163,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: const Color(0xFF8B5E3C),
         title: const Text(
           "Retirer de l'argent",
@@ -178,7 +181,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
             const SizedBox(height: 30),
             _amountField("Montant à retirer"),
             const SizedBox(height: 20),
-            _phoneField("Numéro du destinataire"),
+            _phoneField("Votre numéro de téléphone(incluant indicatif)"),
             const SizedBox(height: 30),
             _actionButton("Retirer", _withdraw),
           ],
@@ -209,7 +212,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
         ),
         const SizedBox(height: 10),
         Text(
-          "$_currentBalance FCFA",
+          "${NumberFormat('#,###', 'fr_FR').format(_currentBalance)} FCFA",
           style: GoogleFonts.poppins(
             fontSize: 28,
             fontWeight: FontWeight.bold,
