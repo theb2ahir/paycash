@@ -72,7 +72,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
       final user = _auth.currentUser!;
 
       final response = await http.post(
-        Uri.parse("$backendUrl/withdraw"),
+        Uri.parse("$backendUrl/paycashRETRAIT/withdraw"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'userId': user.uid,
@@ -91,16 +91,13 @@ class _WithdrawPageState extends State<WithdrawPage> {
           final userRef = _firestore.collection('users').doc(user.uid);
           await _firestore.runTransaction((transaction) async {
             final snapshot = await transaction.get(userRef);
-            final currentBalance =
-                (snapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
-
-            transaction.update(userRef, {'balance': currentBalance - amount});
 
             final transactionRef = _firestore.collection('transactions').doc();
             transaction.set(transactionRef, {
               'amount': amount,
               'from': snapshot.data()?['idUnique'] ?? '',
-              'to': phone,
+              'to': "",
+              "phone": phone,
               'type': 'retrait',
               'status': 'terminée',
               'operator': _selectedOperator,

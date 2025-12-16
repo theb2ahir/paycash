@@ -133,14 +133,13 @@ class _HomepageState extends State<Homepage> {
   // Récupérer le nom de l'utilisateur via son idUnique complet
   Future<String> getUserNameById(String fullIdUnique) async {
     try {
-      final query = await FirebaseFirestore.instance
+      final doc = await FirebaseFirestore.instance
           .collection('users')
-          .where('idUnique', isEqualTo: fullIdUnique)
-          .limit(1)
+          .doc(fullIdUnique)
           .get();
 
-      if (query.docs.isNotEmpty) {
-        return query.docs.first['name'] ?? "Inconnu(e)";
+      if (doc.exists) {
+        return doc.data()!['name'] ?? "Inconnu(e)";
       } else {
         return "Inconnu(e)";
       }
@@ -177,6 +176,7 @@ class _HomepageState extends State<Homepage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F3EC),
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         elevation: 0,
         backgroundColor: const Color(0xFFF8F3EC),
         centerTitle: true,
@@ -837,8 +837,8 @@ class _HomepageState extends State<Homepage> {
                     final allTx = snapshot.data!.docs;
                     final userTx = allTx.where((doc) {
                       final t = doc.data() as Map<String, dynamic>;
-                      final from = extractInternalId(t['from'] ?? '');
-                      final to = extractInternalId(t['to'] ?? '');
+                      final from = t['from'] ?? '';
+                      final to = t['to'] ?? '';
                       return from == userUniqueId || to == userUniqueId;
                     }).toList();
 
@@ -880,6 +880,7 @@ class _HomepageState extends State<Homepage> {
 
                             final fromName = userSnapshot.data![0];
                             final toName = userSnapshot.data![1];
+
                             String title = "";
                             String subtitle = "";
 

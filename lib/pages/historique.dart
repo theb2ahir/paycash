@@ -44,13 +44,9 @@ class _HistoriqueState extends State<Historique> {
   Future<String> getUserNameById(String idUnique) async {
     if (idUnique.isEmpty) return "Inconnu(e)";
     try {
-      final query = await firestore
-          .collection('users')
-          .where('idUnique', isEqualTo: idUnique)
-          .limit(1)
-          .get();
-      if (query.docs.isNotEmpty) {
-        return query.docs.first['name'] ?? "Inconnu(e)";
+      final doc = await firestore.collection('users').doc(idUnique).get();
+      if (doc.exists) {
+        return doc.data()!['name'] ?? "Inconnu(e)";
       }
       return "Inconnu(e)";
     } catch (_) {

@@ -65,7 +65,7 @@ class _RechargePageState extends State<RechargePage> {
       final user = _auth.currentUser!;
 
       final response = await http.post(
-        Uri.parse("$backendUrl/recharge"),
+        Uri.parse("$backendUrl/paycashRECHARGE/recharge"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'userId': user.uid,
@@ -84,11 +84,6 @@ class _RechargePageState extends State<RechargePage> {
         final userRef = _firestore.collection('users').doc(user.uid);
         await _firestore.runTransaction((transaction) async {
           final snapshot = await transaction.get(userRef);
-          final currentBalance =
-              (snapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
-
-          transaction.update(userRef, {'balance': currentBalance + amount});
-
           final transactionRef = _firestore.collection('transactions').doc();
           transaction.set(transactionRef, {
             'amount': amount,

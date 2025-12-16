@@ -60,9 +60,24 @@ class PaymentSuccessPage extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
-              Text(
-                "Référence : $reference",
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
+              Column(
+                children: [
+                  Text(
+                    "Référence de paiement :",
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 19),
+                  Text(
+                    reference,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w200,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 40),
               ElevatedButton(

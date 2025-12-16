@@ -1,11 +1,15 @@
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:paycash/transactions/facture.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:qr_code_scanner_plus/qr_code_scanner_plus.dart';
 
@@ -20,6 +24,8 @@ class SendMoney extends StatefulWidget {
 
 class _SendMoneyState extends State<SendMoney> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final String backendUrl = "http://192.168.1.64:3000";
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   int notifId =
       DateTime.now().millisecondsSinceEpoch ~/ 1000; // secondes depuis 1970
@@ -31,6 +37,12 @@ class _SendMoneyState extends State<SendMoney> {
   Map<String, dynamic>? recipientData;
   bool _isSending = false;
   String enteredPin = "";
+  String username = "";
+
+  String extractInternalId(String fullId) {
+    final parts = fullId.split('_');
+    return parts.length >= 2 ? parts[parts.length - 2] : fullId;
+  }
 
   Future<String> getUserPin() async {
     final uid = _auth.currentUser!.uid;
@@ -40,10 +52,32 @@ class _SendMoneyState extends State<SendMoney> {
     return data['pin']; // ⚠️ hash, pas pin clair
   }
 
+  Future<String> getUserNameById() async {
+    final uid = _auth.currentUser!.uid;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      if (doc.exists) {
+        setState(() {
+          username = doc['name'] ?? "Inconnu(e)";
+        });
+        return username;
+      } else {
+        return "Inconnu(e)";
+      }
+    } catch (e) {
+      return "Inconnu(e)";
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     getUserPin();
+    getUserNameById();
   }
 
   Future<void> _searchUser() async {
@@ -101,45 +135,81 @@ class _SendMoneyState extends State<SendMoney> {
 
     if (recipientQuery.docs.isEmpty) return;
 
-    final recipientDocRef = recipientQuery.docs.first.reference;
-    final recipientBalance = recipientQuery.docs.first['balance'] ?? 0;
-    final senderIdUnique = senderSnapshot['idUnique'];
-
-    await _firestore.runTransaction((transaction) async {
-      transaction.set(_firestore.collection('transactions').doc(), {
-        'amount': amount,
-        'createdAt': FieldValue.serverTimestamp(),
-        'from': senderIdUnique,
-        'to': searchedUserData!['idUnique'],
-        'status': "terminée",
-        'type': "transfert",
-      });
-
-      transaction.update(recipientDocRef, {
-        'balance': recipientBalance + amount,
-      });
-      transaction.update(senderDocRef, {'balance': senderBalance - amount});
-    });
-
-    NotificationService.showNotification(
-      title: "💸 Paiement envoyé",
-      body:
-          "Vous avez envoyé ${amount.toStringAsFixed(0)} FCFA à ${searchedUserData!['name']}",
+    final senderIdUnique = extractInternalId(senderSnapshot['idUnique']);
+    final recipientIdUnique = extractInternalId(
+      recipientQuery.docs.first['idUnique'],
     );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          "✅ Transfert de ${amount.toStringAsFixed(0)} FCFA envoyé à ${searchedUserData!['name']}",
+    try {
+      final response = await http.post(
+        Uri.parse("$backendUrl/paycashTRANSFERT/transfer"),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'fromUserId': senderIdUnique,
+          'toUserId': recipientIdUnique,
+          'amount': amount,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      final token = data['token'];
+
+      if (response.statusCode == 200 && data['status'] == 'success') {
+        NotificationService.showNotification(
+          title: "💸 Paiement envoyé",
+          body:
+              "Vous avez envoyé ${amount.toStringAsFixed(0)} FCFA à ${searchedUserData!['name']}",
+        );
+
+        setState(() {
+          searchedUserData = null;
+          amountController.clear();
+          phoneController.clear();
+        });
+
+        await _firestore.runTransaction((transaction) async {
+          transaction.set(_firestore.collection('transactions').doc(), {
+            'amount': amount,
+            'createdAt': FieldValue.serverTimestamp(),
+            'from': senderIdUnique,
+            'to': recipientIdUnique,
+            'status': "terminée",
+            'type': "transfert",
+          });
+        });
+
+        final snack = ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "✅ Transfert de ${amount.toStringAsFixed(0)} FCFA envoyé à ${searchedUserData!['name']}",
+            ),
+          ),
+        );
+
+        snack.closed.then((_) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => FacturePage(
+                token: token,
+                amount: amount,
+                operator: "${searchedUserData!['name']} _ $username",
+              ),
+            ),
+          );
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text(
+            e.toString(),
+            style: const TextStyle(color: Colors.white),
+          ),
         ),
-      ),
-    );
-
-    setState(() {
-      searchedUserData = null;
-      amountController.clear();
-      phoneController.clear();
-    });
+      );
+    }
   }
 
   Future<void> createTransaction() async {
@@ -176,25 +246,84 @@ class _SendMoneyState extends State<SendMoney> {
             }
 
             final recipientDocRef = recipientQuery.docs.first.reference;
-            final recipientSnapshot = recipientQuery.docs.first.data();
-            final recipientBalance = recipientSnapshot['balance'] ?? 0;
-            final senderIdUnique = senderSnapshot['idUnique'];
+            // nom du destinataire
+            final recipientName = recipientQuery.docs.first['name'];
+            final senderIdUnique = extractInternalId(
+              senderSnapshot['idUnique'],
+            );
+            final recipientIdUnique = extractInternalId(
+              recipientQuery.docs.first['idUnique'],
+            );
 
-            transaction.set(_firestore.collection('transactions').doc(), {
-              'amount': amount,
-              'createdAt': FieldValue.serverTimestamp(),
-              'from': senderIdUnique,
-              'to': recipientData!['idUnique'],
-              'status': "terminée",
-              'type': "transfert",
-            });
+            try {
+              final response = await http.post(
+                Uri.parse("$backendUrl/paycashTRANSFERT/transfer"),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({
+                  'fromUserId': senderIdUnique,
+                  'toUserId': recipientIdUnique,
+                  'amount': amount,
+                }),
+              );
 
-            transaction.update(recipientDocRef, {
-              'balance': recipientBalance + amount,
-            });
-            transaction.update(senderDocRef, {
-              'balance': senderBalance - amount,
-            });
+              final data = jsonDecode(response.body);
+              final token = data['token'];
+
+              if (response.statusCode == 200 && data['status'] == 'success') {
+                // Notification et snackbar après transaction réussie
+
+                transaction.set(_firestore.collection('transactions').doc(), {
+                  'amount': amount,
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'from': senderIdUnique,
+                  'to': recipientIdUnique,
+                  'status': "terminée",
+                  'type': "transfert",
+                });
+
+                NotificationService.showNotification(
+                  title: "💸 Paiement envoyé",
+                  body:
+                      "Vous avez envoyé ${amount.toStringAsFixed(0)} FCFA à $recipientName",
+                );
+                setState(() {
+                  recipientData = null;
+                  _isSending = false;
+                });
+                final snack = ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFFB8860B),
+                    content: Text(
+                      "✅ Transfert de ${amount.toStringAsFixed(0)} FCFA envoyé à $recipientName",
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                );
+
+                snack.closed.then((_) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FacturePage(
+                        token: token,
+                        amount: amount,
+                        operator: "$recipientName _ $username",
+                      ),
+                    ),
+                  );
+                });
+              }
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  backgroundColor: Colors.redAccent,
+                  content: Text(
+                    e.toString(),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              );
+            }
           })
           .timeout(
             const Duration(seconds: 10),
@@ -202,28 +331,6 @@ class _SendMoneyState extends State<SendMoney> {
               throw Exception("⏱️ Temps dépassé. Réessayez plus tard.");
             },
           );
-
-      // Notification et snackbar après transaction réussie
-      NotificationService.showNotification(
-        title: "💸 Paiement envoyé",
-        body:
-            "Vous avez envoyé ${amount.toStringAsFixed(0)} FCFA à ${recipientData!['name']}",
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: const Color(0xFFB8860B),
-          content: Text(
-            "✅ Transfert de ${amount.toStringAsFixed(0)} FCFA envoyé à ${recipientData!['name']}",
-            style: const TextStyle(color: Colors.white),
-          ),
-        ),
-      );
-
-      setState(() {
-        recipientData = null;
-        _isSending = false;
-      });
     } catch (e) {
       // SnackBar d'erreur
       ScaffoldMessenger.of(context).showSnackBar(
@@ -275,156 +382,16 @@ class _SendMoneyState extends State<SendMoney> {
             // --- Bouton Scan ---
             GestureDetector(
               onTap: () {
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) {
-                    return StatefulBuilder(
-                      builder: (context, setState) {
-                        Color pinColor;
-                        if (enteredPin.length < 4) {
-                          pinColor = Colors.red;
-                        } else if (enteredPin.length < 6) {
-                          pinColor = Colors.orange;
-                        } else {
-                          pinColor = Colors.green;
-                        }
-
-                        return AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                "Entrez votre code PIN de sécurité",
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 22,
-                                  color: const Color(0xFF4E342E),
-                                ),
-                              ),
-                              const SizedBox(height: 18),
-
-                              /// 🔐 PIN CODE FIELD
-                              PinCodeTextField(
-                                appContext: context,
-                                length: 6,
-                                obscureText: true,
-                                obscuringCharacter: "●",
-                                keyboardType: TextInputType.number,
-                                animationType: AnimationType.fade,
-                                enableActiveFill: true,
-                                pinTheme: PinTheme(
-                                  shape: PinCodeFieldShape.box,
-                                  borderRadius: BorderRadius.circular(12),
-                                  fieldHeight: 45,
-                                  fieldWidth: 43,
-                                  inactiveFillColor: Colors.white,
-                                  selectedFillColor: Colors.white,
-                                  activeFillColor: Colors.white,
-                                  inactiveColor: pinColor,
-                                  selectedColor: const Color(0xFF6D4C41),
-                                  activeColor: pinColor,
-                                ),
-                                onChanged: (value) {
-                                  setState(() => enteredPin = value);
-                                },
-                              ),
-                            ],
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text(
-                                "Annuler",
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-
-                            /// ✅ BOUTON VERIFIER
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: enteredPin.length == 6
-                                    ? Colors.green
-                                    : const Color(0xFF6D4C41),
-                              ),
-                              onPressed: enteredPin.length == 6
-                                  ? () async {
-                                      final String pin = await getUserPin();
-                                      final bool isValidPin = BCrypt.checkpw(
-                                        enteredPin,
-                                        pin, // pinHash stocké depuis Firestore
-                                      );
-
-                                      if (isValidPin) {
-                                        Navigator.pop(context);
-
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.check_circle,
-                                                  color: Colors.green,
-                                                ),
-                                                SizedBox(width: 8),
-                                                Text("Code PIN correct"),
-                                              ],
-                                            ),
-                                            duration: Duration(seconds: 1),
-                                          ),
-                                        );
-
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => QRScannerPage(
-                                              onScan: (data) {
-                                                setState(
-                                                  () => recipientData = data,
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        );
-                                      } else {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.error,
-                                                  color: Colors.red,
-                                                ),
-                                                SizedBox(width: 8),
-                                                Text("Code PIN incorrect"),
-                                              ],
-                                            ),
-                                            duration: Duration(seconds: 2),
-                                          ),
-                                        );
-
-                                        setState(() => enteredPin = "");
-                                        Navigator.pop(context);
-                                      }
-                                    }
-                                  : null,
-                              child: const Text(
-                                "Vérifier",
-                                style: TextStyle(color: Colors.black),
-                              ),
-                            ),
-                          ],
-                        );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => QRScannerPage(
+                      onScan: (data) {
+                        if (!mounted) return;
+                        setState(() => recipientData = data);
                       },
-                    );
-                  },
+                    ),
+                  ),
                 );
               },
               child: CircleAvatar(
@@ -1041,33 +1008,38 @@ class _SendMoneyState extends State<SendMoney> {
                                                     if (isValidPin) {
                                                       Navigator.pop(context);
 
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ).showSnackBar(
-                                                        const SnackBar(
-                                                          content: Row(
-                                                            children: [
-                                                              Icon(
-                                                                Icons
-                                                                    .check_circle,
-                                                                color: Colors
-                                                                    .green,
+                                                      final snack =
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    Icons
+                                                                        .check_circle,
+                                                                    color: Colors
+                                                                        .green,
+                                                                  ),
+                                                                  SizedBox(
+                                                                    width: 8,
+                                                                  ),
+                                                                  Text(
+                                                                    "Code PIN correct",
+                                                                  ),
+                                                                ],
                                                               ),
-                                                              SizedBox(
-                                                                width: 8,
-                                                              ),
-                                                              Text(
-                                                                "Code PIN correct",
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          duration: Duration(
-                                                            seconds: 1,
-                                                          ),
-                                                        ),
-                                                      );
+                                                              duration:
+                                                                  Duration(
+                                                                    seconds: 1,
+                                                                  ),
+                                                            ),
+                                                          );
+
+                                                      snack.closed.then((_) {
+                                                        _sendToSearchedUser();
+                                                      });
                                                       // Procéder à l'envoi d'argent
-                                                      _sendToSearchedUser();
                                                     } else {
                                                       ScaffoldMessenger.of(
                                                         context,
@@ -1161,17 +1133,16 @@ class _QRScannerPageState extends State<QRScannerPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  bool _isProcessing = false; // 🔥 Empêche double scan
+  bool _isProcessing = false;
 
   // -----------------------------
-  //   🔥 Fonction principale
+  // Fonction principale
   // -----------------------------
   Future<void> _handleScan(String rawData) async {
-    if (_isProcessing) return; // Empêche le double tir
+    if (_isProcessing) return;
     _isProcessing = true;
 
     try {
-      // Décoder les données du QR
       final decoded = jsonDecode(rawData);
 
       if (!decoded.containsKey("idUnique")) {
@@ -1181,7 +1152,6 @@ class _QRScannerPageState extends State<QRScannerPage> {
       final scannedIdUnique = decoded["idUnique"];
       final currentUser = _auth.currentUser!;
 
-      // 🔥 Récupération des infos du scanneur (l’utilisateur connecté)
       final scannerSnapshot = await _firestore
           .collection('users')
           .doc(currentUser.uid)
@@ -1193,11 +1163,8 @@ class _QRScannerPageState extends State<QRScannerPage> {
 
       final scannerIdUnique = scannerSnapshot['idUnique'];
 
-      // ------------------------------------------
-      //     🔥 Enregistrement du ScanEvent
-      // ------------------------------------------
       await _firestore.collection('scanevents').add({
-        "scanner_user_id": scannerIdUnique, // Celui qui scanne
+        "scanner_user_id": scannerIdUnique,
         "scanned_user_id": scannedIdUnique,
         "notified_scan": true,
         "notified_payment": false,
@@ -1205,15 +1172,17 @@ class _QRScannerPageState extends State<QRScannerPage> {
         "timestamp": FieldValue.serverTimestamp(),
       });
 
-      // 🔥 SendMoney reçoit les infos scannées
+      if (!mounted) return;
       widget.onScan(decoded);
 
-      // Pause caméra + fermeture
-      controller?.pauseCamera();
+      await controller?.pauseCamera();
+      if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
       _isProcessing = false;
+      print("Erreur lors du scan : $e");
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: Colors.redAccent,
@@ -1223,21 +1192,31 @@ class _QRScannerPageState extends State<QRScannerPage> {
     }
   }
 
-  // --------------------------------------------------
+  // -----------------------------
+  // Création de la vue QR
+  // -----------------------------
   void _onQRViewCreated(QRViewController controller) {
     this.controller = controller;
 
+    // Listener simplifié, auto-dispose géré par qr_code_scanner_plus
     controller.scannedDataStream.listen((scanData) async {
+      if (!mounted) return;
       await _handleScan(scanData.code!);
     });
   }
 
+  // -----------------------------
+  // Cleanup
+  // -----------------------------
   @override
   void dispose() {
-    controller?.dispose();
+    // Plus besoin de controller?.dispose(), auto-géré
     super.dispose();
   }
 
+  // -----------------------------
+  // Build
+  // -----------------------------
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
