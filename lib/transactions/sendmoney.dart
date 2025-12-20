@@ -1,8 +1,7 @@
-// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use, avoid_print
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -81,9 +80,13 @@ class _SendMoneyState extends State<SendMoney> {
   }
 
   Future<void> _searchUser() async {
-    final phone = phoneController.text.trim();
+    String phone = phoneController.text.trim();
 
     if (phone.isEmpty) return;
+
+    if (!phone.startsWith("+228")) {
+      phone = "+228$phone";
+    }
 
     Query query = _firestore.collection('users');
 
@@ -103,6 +106,25 @@ class _SendMoneyState extends State<SendMoney> {
       searchedUserData =
           querySnapshot.docs.first.data() as Map<String, dynamic>?;
     });
+  }
+
+  void showLoading(BuildContext context, {String text = "Traitement..."}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 16),
+              Expanded(child: Text(text)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _sendToSearchedUser() async {
@@ -140,6 +162,8 @@ class _SendMoneyState extends State<SendMoney> {
       recipientQuery.docs.first['idUnique'],
     );
 
+    showLoading(context, text: "Envoi du paiement...");
+
     try {
       final response = await http.post(
         Uri.parse("$backendUrl/paycashTRANSFERT/transfer"),
@@ -152,6 +176,8 @@ class _SendMoneyState extends State<SendMoney> {
       );
 
       final data = jsonDecode(response.body);
+      Navigator.pop(context); // ✅ fermer loading
+
       final token = data['token'];
 
       if (response.statusCode == 200 && data['status'] == 'success') {
@@ -200,139 +226,134 @@ class _SendMoneyState extends State<SendMoney> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.redAccent,
-          content: Text(
-            e.toString(),
-            style: const TextStyle(color: Colors.white),
-          ),
-        ),
-      );
+      print(e);
     }
   }
 
   Future<void> createTransaction() async {
     if (recipientData == null) return;
 
-    final amount = recipientData!['montant']?.toDouble();
+    final double? amount = recipientData!['montant']?.toDouble();
     if (amount == null || amount <= 0) return;
 
     setState(() => _isSending = true);
 
     try {
-      // Timeout global : 10 secondes pour toute la transaction
-      await _firestore
-          .runTransaction((transaction) async {
-            final sender = _auth.currentUser!;
-            final senderDocRef = _firestore.collection('users').doc(sender.uid);
-            final senderSnapshot = await transaction.get(senderDocRef);
-            final senderBalance = senderSnapshot['balance'] ?? 0;
+      final sender = _auth.currentUser!;
+      final senderRef = _firestore.collection('users').doc(sender.uid);
 
-            if (senderBalance < amount) {
-              throw Exception(
-                "❌ Solde insuffisant : ${senderBalance.toStringAsFixed(0)} FCFA",
-              );
-            }
+      /* ==============================
+       1️⃣ RÉCUPÉRER LE DESTINATAIRE AVANT
+    ============================== */
+      final recipientQuery = await _firestore
+          .collection('users')
+          .where('idUnique', isEqualTo: recipientData!['idUnique'])
+          .limit(1)
+          .get();
 
-            final recipientQuery = await _firestore
-                .collection('users')
-                .where('idUnique', isEqualTo: recipientData!['idUnique'])
-                .limit(1)
-                .get();
+      if (recipientQuery.docs.isEmpty) {
+        throw Exception("❌ Destinataire introuvable");
+      }
 
-            if (recipientQuery.docs.isEmpty) {
-              throw Exception("❌ Destinataire introuvable");
-            }
+      final recipientDoc = recipientQuery.docs.first;
+      final recipientName = recipientDoc['name'];
 
-            final recipientDocRef = recipientQuery.docs.first.reference;
-            // nom du destinataire
-            final recipientName = recipientQuery.docs.first['name'];
-            final senderIdUnique = extractInternalId(
-              senderSnapshot['idUnique'],
-            );
-            final recipientIdUnique = extractInternalId(
-              recipientQuery.docs.first['idUnique'],
-            );
+      final senderSnapshot = await senderRef.get();
+      final senderId = extractInternalId(senderSnapshot['idUnique']);
+      final recipientId = extractInternalId(recipientDoc['idUnique']);
 
-            try {
-              final response = await http.post(
-                Uri.parse("$backendUrl/paycashTRANSFERT/transfer"),
-                headers: {'Content-Type': 'application/json'},
-                body: jsonEncode({
-                  'fromUserId': senderIdUnique,
-                  'toUserId': recipientIdUnique,
-                  'amount': amount,
-                }),
-              );
+      /* ==============================
+       2️⃣ APPEL BACKEND AVANT
+    ============================== */
+      final response = await http
+          .post(
+            Uri.parse("$backendUrl/paycashTRANSFERT/transfer"),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'fromUserId': senderId,
+              'toUserId': recipientId,
+              'amount': amount,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
-              final data = jsonDecode(response.body);
-              final token = data['token'];
+      final data = jsonDecode(response.body);
 
-              if (response.statusCode == 200 && data['status'] == 'success') {
-                // Notification et snackbar après transaction réussie
+      if (response.statusCode != 200 || data['status'] != 'success') {
+        throw Exception("❌ Échec du transfert côté serveur");
+      }
 
-                transaction.set(_firestore.collection('transactions').doc(), {
-                  'amount': amount,
-                  'createdAt': FieldValue.serverTimestamp(),
-                  'from': senderIdUnique,
-                  'to': recipientIdUnique,
-                  'status': "terminée",
-                  'type': "transfert",
-                });
+      final token = data['token'];
 
-                NotificationService.showNotification(
-                  title: "💸 Paiement envoyé",
-                  body:
-                      "Vous avez envoyé ${amount.toStringAsFixed(0)} FCFA à $recipientName",
-                );
-                setState(() {
-                  recipientData = null;
-                  _isSending = false;
-                });
-                final snack = ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    backgroundColor: const Color(0xFFB8860B),
-                    content: Text(
-                      "✅ Transfert de ${amount.toStringAsFixed(0)} FCFA envoyé à $recipientName",
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                );
+      /* ==============================
+       3️⃣ TRANSACTION FIRESTORE PURE
+    ============================== */
+      await _firestore.runTransaction((transaction) async {
+        final senderSnap = await transaction.get(senderRef);
+        final senderBalance = senderSnap['balance'] ?? 0;
 
-                snack.closed.then((_) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FacturePage(
-                        token: token,
-                        amount: amount,
-                        operator: "$recipientName _ $username",
-                      ),
-                    ),
-                  );
-                });
-              }
-            } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  backgroundColor: Colors.redAccent,
-                  content: Text(
-                    e.toString(),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              );
-            }
-          })
-          .timeout(
-            const Duration(seconds: 10),
-            onTimeout: () {
-              throw Exception("⏱️ Temps dépassé. Réessayez plus tard.");
-            },
+        if (senderBalance < amount) {
+          throw Exception(
+            "❌ Solde insuffisant : ${senderBalance.toStringAsFixed(0)} FCFA",
           );
+        }
+
+        // Débit expéditeur
+        transaction.update(senderRef, {'balance': senderBalance - amount});
+
+        // Crédit destinataire
+        transaction.update(recipientDoc.reference, {
+          'balance': FieldValue.increment(amount),
+        });
+
+        // Enregistrement de la transaction
+        transaction.set(_firestore.collection('transactions').doc(), {
+          'amount': amount,
+          'from': senderId,
+          'to': recipientId,
+          'status': 'terminée',
+          'type': 'transfert',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      });
+
+      /* ==============================
+       4️⃣ UI & NOTIFICATIONS APRÈS
+    ============================== */
+      NotificationService.showNotification(
+        title: "💸 Paiement envoyé",
+        body:
+            "Vous avez envoyé ${amount.toStringAsFixed(0)} FCFA à $recipientName",
+      );
+
+      setState(() {
+        recipientData = null;
+        _isSending = false;
+      });
+
+      final snack = ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFFB8860B),
+          content: Text(
+            "✅ Transfert de ${amount.toStringAsFixed(0)} FCFA envoyé à $recipientName",
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+      );
+
+      snack.closed.then((_) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FacturePage(
+              token: token,
+              amount: amount,
+              operator: "$recipientName _ $username",
+            ),
+          ),
+        );
+      });
     } catch (e) {
-      // SnackBar d'erreur
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: Colors.redAccent,
@@ -655,7 +676,7 @@ class _SendMoneyState extends State<SendMoney> {
                   cursorColor: const Color(0xFF5E3B1E),
                   decoration: InputDecoration(
                     labelText: "Numéro de téléphone",
-                    hintText: "E.g: +22899999999",
+                    hintText: "numéro de téléphone de l'ami(e)",
                     labelStyle: GoogleFonts.poppins(
                       color: Colors.black,
                       fontSize: 16,

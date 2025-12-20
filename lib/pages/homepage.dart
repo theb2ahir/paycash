@@ -24,6 +24,7 @@ class Homepage extends StatefulWidget {
 
 class _HomepageState extends State<Homepage> {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final uid = FirebaseAuth.instance.currentUser!.uid;
   final TextEditingController pinnewentryCtrl = TextEditingController();
   String? userUniqueId;
   String userName = "";
@@ -267,197 +268,251 @@ class _HomepageState extends State<Homepage> {
                                       context: context,
                                       barrierDismissible: false,
                                       builder: (context) {
-                                        return StatefulBuilder(
-                                          builder: (context, setState) {
-                                            Color pinColor;
-                                            if (enteredPin.length < 4) {
-                                              pinColor = Colors.red;
-                                            } else if (enteredPin.length < 6) {
-                                              pinColor = Colors.orange;
-                                            } else {
-                                              pinColor = Colors.green;
-                                            }
+                                        return LayoutBuilder(
+                                          builder: (context, constraints) {
+                                            final double screenWidth =
+                                                constraints.maxWidth;
+                                            final double dialogWidth =
+                                                screenWidth > 500
+                                                ? 420
+                                                : screenWidth * 0.9;
 
-                                            return AlertDialog(
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                              ),
-                                              content: Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Text(
-                                                    "Entrez votre code PIN de sécurité",
-                                                    style: GoogleFonts.poppins(
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      fontSize: 22,
-                                                      color: const Color(
-                                                        0xFF4E342E,
-                                                      ),
-                                                    ),
+                                            return StatefulBuilder(
+                                              builder: (context, setStateDialog) {
+                                                Color pinColor;
+                                                if (enteredPin.length < 4) {
+                                                  pinColor = Colors.red;
+                                                } else if (enteredPin.length <
+                                                    6) {
+                                                  pinColor = Colors.orange;
+                                                } else {
+                                                  pinColor = Colors.green;
+                                                }
+
+                                                return AlertDialog(
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          16,
+                                                        ),
                                                   ),
-                                                  const SizedBox(height: 18),
-
-                                                  /// 🔐 PIN CODE FIELD
-                                                  PinCodeTextField(
-                                                    appContext: context,
-                                                    length: 6,
-                                                    obscureText: true,
-                                                    obscuringCharacter: "●",
-                                                    keyboardType:
-                                                        TextInputType.number,
-                                                    animationType:
-                                                        AnimationType.fade,
-                                                    enableActiveFill: true,
-                                                    pinTheme: PinTheme(
-                                                      shape:
-                                                          PinCodeFieldShape.box,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
+                                                  contentPadding:
+                                                      const EdgeInsets.all(20),
+                                                  content: SingleChildScrollView(
+                                                    child: SizedBox(
+                                                      width: dialogWidth,
+                                                      child: Column(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Text(
+                                                            "Entrez votre code PIN de sécurité",
+                                                            textAlign: TextAlign
+                                                                .center,
+                                                            style: GoogleFonts.poppins(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              fontSize:
+                                                                  screenWidth <
+                                                                      360
+                                                                  ? 18
+                                                                  : 22,
+                                                              color:
+                                                                  const Color(
+                                                                    0xFF4E342E,
+                                                                  ),
+                                                            ),
                                                           ),
-                                                      fieldHeight: 45,
-                                                      fieldWidth: 43,
-                                                      inactiveFillColor:
-                                                          Colors.white,
-                                                      selectedFillColor:
-                                                          Colors.white,
-                                                      activeFillColor:
-                                                          Colors.white,
-                                                      inactiveColor: pinColor,
-                                                      selectedColor:
-                                                          const Color(
-                                                            0xFF6D4C41,
+                                                          const SizedBox(
+                                                            height: 18,
                                                           ),
-                                                      activeColor: pinColor,
-                                                    ),
-                                                    onChanged: (value) {
-                                                      setState(
-                                                        () =>
-                                                            enteredPin = value,
-                                                      );
-                                                    },
-                                                  ),
-                                                ],
-                                              ),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(context),
-                                                  child: const Text(
-                                                    "Annuler",
-                                                    style: TextStyle(
-                                                      color: Colors.red,
-                                                    ),
-                                                  ),
-                                                ),
 
-                                                /// ✅ BOUTON VERIFIER
-                                                ElevatedButton(
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                        backgroundColor:
-                                                            enteredPin.length ==
-                                                                6
-                                                            ? Colors.green
-                                                            : const Color(
-                                                                0xFF6D4C41,
-                                                              ),
-                                                      ),
-                                                  onPressed:
-                                                      enteredPin.length == 6
-                                                      ? () {
-                                                          final bool
-                                                          isValidPin =
-                                                              BCrypt.checkpw(
-                                                                enteredPin,
-                                                                pin, // pinHash stocké depuis Firestore
+                                                          PinCodeTextField(
+                                                            appContext: context,
+                                                            length: 6,
+                                                            obscureText: true,
+                                                            obscuringCharacter:
+                                                                "●",
+                                                            keyboardType:
+                                                                TextInputType
+                                                                    .number,
+                                                            animationType:
+                                                                AnimationType
+                                                                    .fade,
+                                                            enableActiveFill:
+                                                                true,
+                                                            pinTheme: PinTheme(
+                                                              shape:
+                                                                  PinCodeFieldShape
+                                                                      .box,
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    12,
+                                                                  ),
+                                                              fieldHeight:
+                                                                  screenWidth <
+                                                                      360
+                                                                  ? 42
+                                                                  : 48,
+                                                              fieldWidth:
+                                                                  screenWidth <
+                                                                      360
+                                                                  ? 38
+                                                                  : 45,
+                                                              inactiveFillColor:
+                                                                  Colors.white,
+                                                              selectedFillColor:
+                                                                  Colors.white,
+                                                              activeFillColor:
+                                                                  Colors.white,
+                                                              inactiveColor:
+                                                                  pinColor,
+                                                              selectedColor:
+                                                                  const Color(
+                                                                    0xFF6D4C41,
+                                                                  ),
+                                                              activeColor:
+                                                                  pinColor,
+                                                            ),
+                                                            onChanged: (value) {
+                                                              setStateDialog(
+                                                                () =>
+                                                                    enteredPin =
+                                                                        value,
                                                               );
-
-                                                          if (isValidPin) {
-                                                            Navigator.pop(
-                                                              context,
-                                                            );
-
-                                                            ScaffoldMessenger.of(
-                                                              context,
-                                                            ).showSnackBar(
-                                                              const SnackBar(
-                                                                content: Row(
-                                                                  children: [
-                                                                    Icon(
-                                                                      Icons
-                                                                          .check_circle,
-                                                                      color: Colors
-                                                                          .green,
-                                                                    ),
-                                                                    SizedBox(
-                                                                      width: 8,
-                                                                    ),
-                                                                    Text(
-                                                                      "Code PIN correct",
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                                duration:
-                                                                    Duration(
-                                                                      seconds:
-                                                                          1,
-                                                                    ),
-                                                              ),
-                                                            );
-
-                                                            Clipboard.setData(
-                                                              ClipboardData(
-                                                                text:
-                                                                    fullIdUnique,
-                                                              ),
-                                                            );
-                                                          } else {
-                                                            ScaffoldMessenger.of(
-                                                              context,
-                                                            ).showSnackBar(
-                                                              const SnackBar(
-                                                                content: Row(
-                                                                  children: [
-                                                                    Icon(
-                                                                      Icons
-                                                                          .error,
-                                                                      color: Colors
-                                                                          .red,
-                                                                    ),
-                                                                    SizedBox(
-                                                                      width: 8,
-                                                                    ),
-                                                                    Text(
-                                                                      "Code PIN incorrect",
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                                duration:
-                                                                    Duration(
-                                                                      seconds:
-                                                                          2,
-                                                                    ),
-                                                              ),
-                                                            );
-
-                                                            setState(
-                                                              () => enteredPin =
-                                                                  "",
-                                                            );
-                                                          }
-                                                        }
-                                                      : null,
-                                                  child: const Text(
-                                                    "Vérifier",
-                                                    style: TextStyle(
-                                                      color: Colors.black,
+                                                            },
+                                                          ),
+                                                        ],
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                              ],
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                          ),
+                                                      child: const Text(
+                                                        "Annuler",
+                                                        style: TextStyle(
+                                                          color: Colors.red,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    ElevatedButton(
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                enteredPin
+                                                                        .length ==
+                                                                    6
+                                                                ? Colors.green
+                                                                : const Color(
+                                                                    0xFF6D4C41,
+                                                                  ),
+                                                            minimumSize:
+                                                                const Size(
+                                                                  110,
+                                                                  45,
+                                                                ),
+                                                          ),
+                                                      onPressed:
+                                                          enteredPin.length == 6
+                                                          ? () {
+                                                              final bool
+                                                              isValidPin =
+                                                                  BCrypt.checkpw(
+                                                                    enteredPin,
+                                                                    pindeclaglob,
+                                                                  );
+
+                                                              if (isValidPin) {
+                                                                ScaffoldMessenger.of(
+                                                                  context,
+                                                                ).showSnackBar(
+                                                                  const SnackBar(
+                                                                    content: Row(
+                                                                      children: [
+                                                                        Icon(
+                                                                          Icons
+                                                                              .check_circle,
+                                                                          color:
+                                                                              Colors.green,
+                                                                        ),
+                                                                        SizedBox(
+                                                                          width:
+                                                                              8,
+                                                                        ),
+                                                                        Text(
+                                                                          "Code PIN correct",
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                    duration:
+                                                                        Duration(
+                                                                          seconds:
+                                                                              1,
+                                                                        ),
+                                                                  ),
+                                                                );
+
+                                                                setState(() {
+                                                                  _isBalanceVisible =
+                                                                      !_isBalanceVisible;
+                                                                });
+
+                                                                Navigator.pop(
+                                                                  context,
+                                                                );
+                                                              } else {
+                                                                ScaffoldMessenger.of(
+                                                                  context,
+                                                                ).showSnackBar(
+                                                                  const SnackBar(
+                                                                    content: Row(
+                                                                      children: [
+                                                                        Icon(
+                                                                          Icons
+                                                                              .error,
+                                                                          color:
+                                                                              Colors.red,
+                                                                        ),
+                                                                        SizedBox(
+                                                                          width:
+                                                                              8,
+                                                                        ),
+                                                                        Text(
+                                                                          "Code PIN incorrect",
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                    duration:
+                                                                        Duration(
+                                                                          seconds:
+                                                                              2,
+                                                                        ),
+                                                                  ),
+                                                                );
+
+                                                                setStateDialog(
+                                                                  () =>
+                                                                      enteredPin =
+                                                                          "",
+                                                                );
+                                                              }
+                                                            }
+                                                          : null,
+                                                      child: const Text(
+                                                        "Vérifier",
+                                                        style: TextStyle(
+                                                          color: Colors.black,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
                                             );
                                           },
                                         );
@@ -608,167 +663,220 @@ class _HomepageState extends State<Homepage> {
                                 context: context,
                                 barrierDismissible: false,
                                 builder: (context) {
-                                  return StatefulBuilder(
-                                    builder: (context, setStateDialog) {
-                                      Color pinColor;
-                                      if (enteredPin.length < 4) {
-                                        pinColor = Colors.red;
-                                      } else if (enteredPin.length < 6) {
-                                        pinColor = Colors.orange;
-                                      } else {
-                                        pinColor = Colors.green;
-                                      }
+                                  return LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final double screenWidth =
+                                          constraints.maxWidth;
+                                      final double dialogWidth =
+                                          screenWidth > 500
+                                          ? 420
+                                          : screenWidth * 0.9;
 
-                                      return AlertDialog(
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                        ),
-                                        content: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              "Entrez votre code PIN de sécurité",
-                                              style: GoogleFonts.poppins(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 22,
-                                                color: const Color(0xFF4E342E),
-                                              ),
+                                      return StatefulBuilder(
+                                        builder: (context, setStateDialog) {
+                                          Color pinColor;
+                                          if (enteredPin.length < 4) {
+                                            pinColor = Colors.red;
+                                          } else if (enteredPin.length < 6) {
+                                            pinColor = Colors.orange;
+                                          } else {
+                                            pinColor = Colors.green;
+                                          }
+
+                                          return AlertDialog(
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
                                             ),
-                                            const SizedBox(height: 18),
-                                            PinCodeTextField(
-                                              appContext: context,
-                                              length: 6,
-                                              obscureText: true,
-                                              obscuringCharacter: "●",
-                                              keyboardType:
-                                                  TextInputType.number,
-                                              animationType: AnimationType.fade,
-                                              enableActiveFill: true,
-                                              pinTheme: PinTheme(
-                                                shape: PinCodeFieldShape.box,
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                                fieldHeight: 45,
-                                                fieldWidth: 43,
-                                                inactiveFillColor: Colors.white,
-                                                selectedFillColor: Colors.white,
-                                                activeFillColor: Colors.white,
-                                                inactiveColor: pinColor,
-                                                selectedColor: const Color(
-                                                  0xFF6D4C41,
-                                                ),
-                                                activeColor: pinColor,
-                                              ),
-                                              onChanged: (value) {
-                                                setStateDialog(
-                                                  () => enteredPin = value,
-                                                ); // pour l'affichage du champ
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context),
-                                            child: const Text(
-                                              "Annuler",
-                                              style: TextStyle(
-                                                color: Colors.red,
-                                              ),
-                                            ),
-                                          ),
-                                          ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  enteredPin.length == 6
-                                                  ? Colors.green
-                                                  : const Color(0xFF6D4C41),
-                                            ),
-                                            onPressed: enteredPin.length == 6
-                                                ? () {
-                                                    final bool isValidPin =
-                                                        BCrypt.checkpw(
-                                                          enteredPin,
-                                                          pindeclaglob,
+                                            contentPadding:
+                                                const EdgeInsets.all(20),
+                                            content: SingleChildScrollView(
+                                              child: SizedBox(
+                                                width: dialogWidth,
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      "Entrez votre code PIN de sécurité",
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            fontSize:
+                                                                screenWidth <
+                                                                    360
+                                                                ? 18
+                                                                : 22,
+                                                            color: const Color(
+                                                              0xFF4E342E,
+                                                            ),
+                                                          ),
+                                                    ),
+                                                    const SizedBox(height: 18),
+
+                                                    PinCodeTextField(
+                                                      appContext: context,
+                                                      length: 6,
+                                                      obscureText: true,
+                                                      obscuringCharacter: "●",
+                                                      keyboardType:
+                                                          TextInputType.number,
+                                                      animationType:
+                                                          AnimationType.fade,
+                                                      enableActiveFill: true,
+                                                      pinTheme: PinTheme(
+                                                        shape: PinCodeFieldShape
+                                                            .box,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                        fieldHeight:
+                                                            screenWidth < 360
+                                                            ? 42
+                                                            : 48,
+                                                        fieldWidth:
+                                                            screenWidth < 360
+                                                            ? 38
+                                                            : 45,
+                                                        inactiveFillColor:
+                                                            Colors.white,
+                                                        selectedFillColor:
+                                                            Colors.white,
+                                                        activeFillColor:
+                                                            Colors.white,
+                                                        inactiveColor: pinColor,
+                                                        selectedColor:
+                                                            const Color(
+                                                              0xFF6D4C41,
+                                                            ),
+                                                        activeColor: pinColor,
+                                                      ),
+                                                      onChanged: (value) {
+                                                        setStateDialog(
+                                                          () => enteredPin =
+                                                              value,
                                                         );
-
-                                                    if (isValidPin) {
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ).showSnackBar(
-                                                        const SnackBar(
-                                                          content: Row(
-                                                            children: [
-                                                              Icon(
-                                                                Icons
-                                                                    .check_circle,
-                                                                color: Colors
-                                                                    .green,
-                                                              ),
-                                                              SizedBox(
-                                                                width: 8,
-                                                              ),
-                                                              Text(
-                                                                "Code PIN correct",
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          duration: Duration(
-                                                            seconds: 1,
-                                                          ),
-                                                        ),
-                                                      );
-
-                                                      // ✅ IMPORTANT : utiliser setState du parent pour rebuild le solde et l'icône
-                                                      setState(() {
-                                                        _isBalanceVisible =
-                                                            !_isBalanceVisible;
-                                                      });
-
-                                                      Navigator.pop(context);
-                                                    } else {
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ).showSnackBar(
-                                                        const SnackBar(
-                                                          content: Row(
-                                                            children: [
-                                                              Icon(
-                                                                Icons.error,
-                                                                color:
-                                                                    Colors.red,
-                                                              ),
-                                                              SizedBox(
-                                                                width: 8,
-                                                              ),
-                                                              Text(
-                                                                "Code PIN incorrect",
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          duration: Duration(
-                                                            seconds: 2,
-                                                          ),
-                                                        ),
-                                                      );
-
-                                                      setStateDialog(
-                                                        () => enteredPin = "",
-                                                      );
-                                                    }
-                                                  }
-                                                : null,
-                                            child: const Text(
-                                              "Vérifier",
-                                              style: TextStyle(
-                                                color: Colors.black,
+                                                      },
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        ],
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(context),
+                                                child: const Text(
+                                                  "Annuler",
+                                                  style: TextStyle(
+                                                    color: Colors.red,
+                                                  ),
+                                                ),
+                                              ),
+                                              ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      enteredPin.length == 6
+                                                      ? Colors.green
+                                                      : const Color(0xFF6D4C41),
+                                                  minimumSize: const Size(
+                                                    110,
+                                                    45,
+                                                  ),
+                                                ),
+                                                onPressed:
+                                                    enteredPin.length == 6
+                                                    ? () {
+                                                        final bool isValidPin =
+                                                            BCrypt.checkpw(
+                                                              enteredPin,
+                                                              pindeclaglob,
+                                                            );
+
+                                                        if (isValidPin) {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    Icons
+                                                                        .check_circle,
+                                                                    color: Colors
+                                                                        .green,
+                                                                  ),
+                                                                  SizedBox(
+                                                                    width: 8,
+                                                                  ),
+                                                                  Text(
+                                                                    "Code PIN correct",
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                              duration:
+                                                                  Duration(
+                                                                    seconds: 1,
+                                                                  ),
+                                                            ),
+                                                          );
+
+                                                          setState(() {
+                                                            _isBalanceVisible =
+                                                                !_isBalanceVisible;
+                                                          });
+
+                                                          Navigator.pop(
+                                                            context,
+                                                          );
+                                                        } else {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    Icons.error,
+                                                                    color: Colors
+                                                                        .red,
+                                                                  ),
+                                                                  SizedBox(
+                                                                    width: 8,
+                                                                  ),
+                                                                  Text(
+                                                                    "Code PIN incorrect",
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                              duration:
+                                                                  Duration(
+                                                                    seconds: 2,
+                                                                  ),
+                                                            ),
+                                                          );
+
+                                                          setStateDialog(
+                                                            () =>
+                                                                enteredPin = "",
+                                                          );
+                                                        }
+                                                      }
+                                                    : null,
+                                                child: const Text(
+                                                  "Vérifier",
+                                                  style: TextStyle(
+                                                    color: Colors.black,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
                                       );
                                     },
                                   );
@@ -846,8 +954,8 @@ class _HomepageState extends State<Homepage> {
                       return const Center(child: Text("Aucune transaction"));
                     }
 
-                    final displayTx = userTx.length > 10
-                        ? userTx.sublist(0, 5)
+                    final displayTx = userTx.length > 6
+                        ? userTx.sublist(0, 4)
                         : userTx;
 
                     return ListView.builder(
@@ -884,9 +992,7 @@ class _HomepageState extends State<Homepage> {
                             String title = "";
                             String subtitle = "";
 
-                            if (type == 'retrait' ||
-                                (fromFull == userUniqueId &&
-                                    (toFull.isEmpty))) {
+                            if (type == 'retrait') {
                               title = "Retrait";
                               subtitle = "Vous avez retiré $amount FCFA";
                             } else if (type == 'recharge') {
@@ -894,12 +1000,11 @@ class _HomepageState extends State<Homepage> {
                               subtitle =
                                   "Vous avez rechargé votre compte de $amount FCFA";
                             } else if (type == 'transfert') {
-                              if (extractInternalId(fromFull) == userUniqueId) {
+                              if (fromFull == uid) {
                                 title = "Transfert d'argent";
                                 subtitle =
                                     "Vous avez envoyé $amount FCFA à $toName";
-                              } else if (extractInternalId(toFull) ==
-                                  userUniqueId) {
+                              } else if (toFull == uid) {
                                 title = "Transfert reçu";
                                 subtitle =
                                     "Vous avez reçu $amount FCFA de $fromName";

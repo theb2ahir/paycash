@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:bcrypt/bcrypt.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:paycash/transactions/paymentsucces.dart';
+import 'package:pin_code_fields/pin_code_fields.dart';
 import 'dart:convert';
 
 import 'facture.dart';
@@ -25,6 +27,8 @@ class _RechargePageState extends State<RechargePage> {
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
 
+  String enteredPin = "";
+  String pindeclaglob = "";
   bool _isProcessing = false;
   double _currentBalance = 0;
   String _selectedOperator = 'YAS';
@@ -34,6 +38,20 @@ class _RechargePageState extends State<RechargePage> {
   void initState() {
     super.initState();
     _loadBalance();
+    fetchUserData();
+  }
+
+  Future<void> fetchUserData() async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    final data = doc.data()!;
+
+    setState(() {
+      pindeclaglob = data['pin'] ?? "";
+    });
   }
 
   Future<void> _loadBalance() async {
@@ -48,14 +66,173 @@ class _RechargePageState extends State<RechargePage> {
     }
   }
 
+  _verifyPin() async {
+    if (_amountController.text.isEmpty || _phoneController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Veuillez remplir tous les champs")),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final double screenWidth = constraints.maxWidth;
+            final double dialogWidth = screenWidth > 500
+                ? 420
+                : screenWidth * 0.9;
+
+            return StatefulBuilder(
+              builder: (context, setStateDialog) {
+                Color pinColor;
+                if (enteredPin.length < 4) {
+                  pinColor = Colors.red;
+                } else if (enteredPin.length < 6) {
+                  pinColor = Colors.orange;
+                } else {
+                  pinColor = Colors.green;
+                }
+
+                return AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  contentPadding: const EdgeInsets.all(20),
+                  content: SingleChildScrollView(
+                    child: SizedBox(
+                      width: dialogWidth,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "Entrez votre code PIN de sécurité",
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              fontSize: screenWidth < 360 ? 18 : 22,
+                              color: const Color(0xFF4E342E),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+
+                          PinCodeTextField(
+                            appContext: context,
+                            length: 6,
+                            obscureText: true,
+                            obscuringCharacter: "●",
+                            keyboardType: TextInputType.number,
+                            animationType: AnimationType.fade,
+                            enableActiveFill: true,
+                            pinTheme: PinTheme(
+                              shape: PinCodeFieldShape.box,
+                              borderRadius: BorderRadius.circular(12),
+                              fieldHeight: screenWidth < 360 ? 42 : 48,
+                              fieldWidth: screenWidth < 360 ? 38 : 45,
+                              inactiveFillColor: Colors.white,
+                              selectedFillColor: Colors.white,
+                              activeFillColor: Colors.white,
+                              inactiveColor: pinColor,
+                              selectedColor: const Color(0xFF6D4C41),
+                              activeColor: pinColor,
+                            ),
+                            onChanged: (value) {
+                              setStateDialog(() => enteredPin = value);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        "Annuler",
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: enteredPin.length == 6
+                            ? Colors.green
+                            : const Color(0xFF6D4C41),
+                        minimumSize: const Size(110, 45),
+                      ),
+                      onPressed: enteredPin.length == 6
+                          ? () {
+                              final bool isValidPin = BCrypt.checkpw(
+                                enteredPin,
+                                pindeclaglob,
+                              );
+
+                              if (isValidPin) {
+                                final snack = ScaffoldMessenger.of(context)
+                                    .showSnackBar(
+                                      const SnackBar(
+                                        content: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.check_circle,
+                                              color: Colors.green,
+                                            ),
+                                            SizedBox(width: 8),
+                                            Text("Code PIN correct"),
+                                          ],
+                                        ),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                snack.closed.then((_) {
+                                  Navigator.pop(context);
+                                  _recharge();
+                                });
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Row(
+                                      children: [
+                                        Icon(Icons.error, color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text("Code PIN incorrect"),
+                                      ],
+                                    ),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+
+                                setStateDialog(() => enteredPin = "");
+                              }
+                            }
+                          : null,
+                      child: const Text(
+                        "Vérifier",
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _recharge() async {
     final amount = double.tryParse(_amountController.text);
-    final phonenumber = _phoneController.text.trim();
+    String phonenumber = _phoneController.text.trim();
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Veuillez entrer un montant valide")),
       );
       return;
+    }
+    // vreifier si le numero de telephone commence par +228 sinon on l'ajoute
+    if (!phonenumber.startsWith("+228")) {
+      phonenumber = "+228$phonenumber";
     }
 
     if (_isProcessing) return;
@@ -87,7 +264,7 @@ class _RechargePageState extends State<RechargePage> {
           final transactionRef = _firestore.collection('transactions').doc();
           transaction.set(transactionRef, {
             'amount': amount,
-            'from': snapshot.data()?['idUnique'] ?? '',
+            'from': user.uid,
             'to': "",
             'type': 'recharge',
             'status': 'terminée',
@@ -158,9 +335,9 @@ class _RechargePageState extends State<RechargePage> {
             const SizedBox(height: 30),
             _amountField("Montant à recharger"),
             const SizedBox(height: 30),
-            _phoneNumberField("Votre numéro de téléphone(incluant indicatif)"),
+            _phoneNumberField("Votre numéro de téléphone"),
             const SizedBox(height: 30),
-            _actionButton("Recharger", _recharge),
+            _actionButton("Recharger", _verifyPin),
           ],
         ),
       ),

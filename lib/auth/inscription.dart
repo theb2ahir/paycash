@@ -190,6 +190,9 @@ class _InscriptionState extends State<Inscription> {
         passwordCtrl.text.isEmpty) {
       return;
     }
+    if (!phoneCtrl.text.startsWith("+228")) {
+      phoneCtrl.text = "+228$phoneCtrl.text";
+    }
 
     try {
       if (!emailCtrl.text.contains('@gmail.com')) {
@@ -272,6 +275,10 @@ class _InscriptionState extends State<Inscription> {
         emailCtrl.text.isEmpty ||
         passwordCtrl.text.isEmpty) {
       return;
+    }
+
+    if (!phoneCtrl.text.startsWith("+228")) {
+      phoneCtrl.text = "+228$phoneCtrl.text";
     }
 
     try {
@@ -403,7 +410,7 @@ class _InscriptionState extends State<Inscription> {
                   controller: phoneCtrl,
                   keyboardType: TextInputType.phone,
                   label: "Téléphone",
-                  hintText: "E.g: +22892349698",
+                  hintText: "votre numéro de téléphone",
                   icon: Icons.phone_android,
                   color: brown,
                 ),

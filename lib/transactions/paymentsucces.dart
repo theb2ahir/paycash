@@ -24,7 +24,7 @@ class PaymentSuccessPage extends StatelessWidget {
         automaticallyImplyLeading: false,
         backgroundColor: const Color(0xFF8B5E3C),
         title: Text(
-          "Paiement confirmé",
+          "Paiement réussi",
           style: GoogleFonts.poppins(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -42,9 +42,9 @@ class PaymentSuccessPage extends StatelessWidget {
               const Icon(
                 Icons.check_circle_outline,
                 color: Colors.green,
-                size: 100,
+                size: 300,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 30),
               Text(
                 title,
                 style: const TextStyle(
@@ -109,24 +109,6 @@ class PaymentSuccessPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 15),
-              ElevatedButton(
-                onPressed: () =>
-                    Navigator.popUntil(context, (route) => route.isFirst),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[300],
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 40,
-                    vertical: 15,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  "Retour à l'accueil",
-                  style: TextStyle(fontSize: 18, color: Colors.black87),
-                ),
-              ),
             ],
           ),
         ),

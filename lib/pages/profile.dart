@@ -154,17 +154,39 @@ class _ProfilePageState extends State<ProfilePage> {
                     : (!val.contains('@') ? 'Email invalide' : null),
               ),
               const SizedBox(height: 20),
-
               _buildInputField(
                 label: "Numéro de téléphone",
                 icon: Icons.phone_outlined,
                 initial: phone,
                 keyboardType: TextInputType.phone,
-                onChanged: (val) => phone = val,
-                validator: (val) => val == null || val.isEmpty
-                    ? 'Veuillez entrer un numéro'
-                    : null,
+                onChanged: (val) {
+                  String value = val.trim();
+
+                  if (!value.startsWith('+228')) {
+                    // Supprimer un éventuel + ou 228 au début
+                    value = value.replaceFirst(RegExp(r'^(\+?228|\+)'), '');
+                    value = '+228$value';
+                  }
+
+                  phone = value;
+                },
+                validator: (val) {
+                  if (val == null || val.isEmpty) {
+                    return 'Veuillez entrer un numéro';
+                  }
+
+                  if (!val.startsWith('+228')) {
+                    return 'Le numéro doit commencer par +228';
+                  }
+
+                  if (val.length < 12) {
+                    return 'Numéro invalide';
+                  }
+
+                  return null;
+                },
               ),
+
               const SizedBox(height: 30),
 
               // ----- Bouton enregistrer -----

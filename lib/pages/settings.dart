@@ -205,6 +205,7 @@ class _SettingsState extends State<Settings> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F3EC),
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: const Color(0xFF4E342E),
         centerTitle: true,
         elevation: 2,
